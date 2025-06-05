@@ -1,0 +1,12 @@
+__pycache__
+.python-version
+.venv
+.demo_detections
+.demo_output
+cache
+*.pt
+.vscode
+*.yaml
+!settings.template.yaml
+output_video.mp4
+data/cam04.mp4
