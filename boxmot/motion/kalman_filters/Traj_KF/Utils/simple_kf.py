@@ -32,6 +32,7 @@ class SimpleKalmanFilterXY:
         ] + [
             self._std_weight_velocity * scale for _ in range(self.dim)
         ]
+        
         covariance = np.diag(np.square(std))
         track.xymean = mean
         track.xycov = covariance
@@ -46,6 +47,8 @@ class SimpleKalmanFilterXY:
         ] + [
             self._std_weight_velocity * scale for _ in range(self.dim)
         ]
+        
+        
         motion_cov = np.diag(np.square(std))
         mean = self._motion_mat @ mean
         covariance = self._motion_mat @ covariance @ self._motion_mat.T + motion_cov

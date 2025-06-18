@@ -5,7 +5,7 @@ def draw_boxes(frame, boxes, color=(0, 255, 0), thickness=2):
     for box in boxes:
         id, x1, y1, x2, y2 = map(int, box)
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
-        cv2.putText(frame, f'ID: {id}', (x1, y1 - 10), cv2.FONT_HERSHEY_PLAIN, 0.5, color, thickness)
+        cv2.putText(frame, f'ID: {id}', (x1, y1 - 10), cv2.FONT_HERSHEY_PLAIN, 4, color, thickness)
     return frame
 
 def load_all_boxes(path):
@@ -123,7 +123,6 @@ def draw_preds(frame, preds):
     """
     for pred in preds:
         x1,y1,x2,y2 = map(int, pred)
-        print(f"Drawing prediction box: {x1}, {y1}, {x2}, {y2}")
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
 
     return frame
@@ -139,22 +138,26 @@ def xywh_to_xyxy(box):
         list: Bounding box in (x1, y1, x2, y2) format.
     """
     x, y, w, h = map(int, box)
-    return [x, y, x + w, y + h]
+    return [x-w//2, y-h//2, x+w//2, y+h//2]
 
 
 codec = cv2.VideoWriter_fourcc(*'mp4v') # type: ignore
 cap = cv2.VideoCapture('data/cam04.mp4')
 width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-outputvid = cv2.VideoWriter('output_video.mp4', codec, 15, (width, height))
+outputvid = cv2.VideoWriter('all_34_points.mp4', codec, 15, (width, height))
 polys = read_traj('data/trajectories/cam04_traj_redo.json').pop('polygons')
 predictions = True
 pred_dir = 'output/cam04_sct_boxmot_results_predictions_pred.txt'
 
 frame_num = 0
 all_boxes = load_all_boxes('output/cam04_sct_boxmot_results_predictions.txt')
-preds = load_all_preds(pred_dir) if predictions else None
+preds = load_all_preds(pred_dir) 
 fps = 0
+
+debugpoints = True
+debug_txt = 'debug_points.txt'
+
 while True:
     now = cv2.getTickCount()
     print(f"\rProcessing frame {frame_num} at {int(fps)} fps", end='', flush=True)
@@ -173,6 +176,12 @@ while True:
     if predictions: # if predictions are enabled, draw them
         frame_preds = preds.get(frame_num, [])
         draw_preds(frame, frame_preds)
+
+    if debugpoints:
+        with open(debug_txt, 'r') as f:
+            for line in f.readlines():
+                point = line.strip().split(', ')
+                cv2.circle(frame, (int(float(point[0])), int(float(point[1]))), 5, (0, 255, 255), -1)
 
     draw_boxes(frame, boxes) # draw boxes onto the frame
 

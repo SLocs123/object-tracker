@@ -130,7 +130,7 @@ def traj_to_img_domain(position, map):
     Returns:
         np.ndarray: (x, y) position in image domain.
     """
-    lat_disp, traj_disp = position
+    traj_disp, lat_disp = position
 
     # Handle standard interpolation within the map
     for i in range(1, len(map)):

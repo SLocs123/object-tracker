@@ -21,6 +21,7 @@ pydantic-settings = "^2.0.3"
 prometheus-client = "^0.17.1"
 boxmot = "10.0.77"
 shapely = "^2.1.1"
+motmetrics = "^1.4.0"
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,8 +1,10 @@
-from .simple_kf import SimpleKalmanFilterXY
 import numpy as np
 from boxmot.motion.kalman_filters.Traj_KF.Utils.transformations import img_to_traj_domain, traj_to_img_domain
 import scipy.linalg
+from boxmot.motion.kalman_filters.Traj_KF.Utils.xywh_kf import noise_from_wh
+import os
 
+noise = noise_from_wh()
 class MultiKalman:
     """
     Manages multiple Kalman filters for tracking trajectories in a multi-dimensional space.
@@ -49,12 +51,14 @@ class MultiKalman:
         track.xymeans = []
         track.xycovs = []
         maps = track.maps
+        std = noise._get_initial_covariance_std(track.xywh[2:4])  # Extract width and height from xywh
+        
         if maps:
             for map in maps:
                 xy = track.xywh[:2] 
 
                 track.long_lat = img_to_traj_domain(xy, map) 
-                mean, cov = self.kf.initiate(track.long_lat)  
+                mean, cov = self.kf.initiate(track.long_lat, std)  
                 track.xymeans.append(mean)
                 track.xycovs.append(cov)
         else:
@@ -77,29 +81,53 @@ class MultiKalman:
             The predicted trajectory state is then transformed to the image domain using the corresponding map.
         """
         
+        std_pos, std_vel = noise._get_process_noise_std(track.xywh[2:4])  # Extract width and height from xywh
+        
         means = track.xymeans
         covariances = track.xycovs
+        # if track.id==2:
+            # print('/////////////////////////////////////////////////////')
+            # print(f"Predicting for track {track.id} with means: {means}")
+
         for i, mean in enumerate(means):
             cov = covariances[i]
-            mean, cov = self.kf.predict(mean, cov)
+            mean, cov = self.kf.predict(mean, cov, std_pos, std_vel)
 
-            track.xymeans[i] = mean
-            track.xycovs[i] = cov
+            track.xymeans[i] = mean.copy()  # Ensure we copy the mean to avoid reference issues
+            track.xycovs[i] = cov.copy()
         
         # Sort xymeans and xycovs by mean[1] in xymeans, maintaining their correspondence, and get the index
         sorted_index, sorted_pair = min(
             enumerate(zip(track.xymeans, track.xycovs)),
             key=lambda pair: pair[1][0][1]
         )
-        # print(track.xymeans)
 
-        track.xymean, track.xycov = sorted_pair
-        point = traj_to_img_domain(track.xymean[:2], track.maps[sorted_index])
-        # print(track.xymean[:2], '--------------------')
-        # print(point, '//////////////////////')
-        track.xymean[:2] = point  # Update the mean with the predicted position in image domain
+        xymean, xycov = sorted_pair
+        point = traj_to_img_domain(xymean[:2], track.maps[sorted_index])
+
+        vxvy = xymean[2:4].copy()
+        track.xymean = [point[0], point[1], vxvy[0], vxvy[1]]  # Update the mean with the predicted position in image domain
         
+        debug = True
+        if debug:
+            if track.id==34:
+                print('pos id //////////////////////////////////////////////////////////////////////////////////////')
+                if not os.path.exists('34_maps.txt'):
+                    with open('34_maps.txt', 'w') as f:
+                        f.write(str(track.maps))
+                points = np.array([], dtype=np.float32)
+                for i in range(len(track.xymeans)):
+                    point = traj_to_img_domain(track.xymeans[i][:2], track.maps[i])
+                    points = np.append(points, point)
+                if points.size > 0:
+                    with open("debug_points.txt", "a") as f:
+                        for pt in points.reshape(-1, 2):
+                            f.write(f"{pt[0]}, {pt[1]}\n")
+                # return points
         
+        # if track.id==2:
+            # print('/////////////////////////////////////////////////////')
+            # print(f"Predicting for track {track.id} with means: {means}")
 
 
     def update(self, track, measurement):
@@ -116,12 +144,19 @@ class MultiKalman:
                 - updated_covariances (list): The updated state covariances for each trajectory.
         """
         
+        confidence = getattr(track, "conf", getattr(track, "confidence", 0.0))
+        wh = np.array(track.xywh[2:4])  # Extract width and height from xywh
+        std = noise._get_measurement_noise_std(wh)
+        
+        
+        
         updated_means = []
         updated_covariances = []
+
         for i, mean in enumerate(track.xymeans):
             # Convert measurement to trajectory domain
             lat_long = img_to_traj_domain(measurement, track.maps[i])
-            mean, cov = self.kf.update(mean, track.xycovs[i], lat_long)
+            mean, cov = self.kf.update(mean, track.xycovs[i], lat_long, std, confidence)
             updated_means.append(mean)
             updated_covariances.append(cov)
 
@@ -147,54 +182,64 @@ class MultiKalmanFilterXY:
         self._std_weight_position = std_pos
         self._std_weight_velocity = std_vel
 
-    def initiate(self, lat_long):
-        
+    def initiate(self, lat_long, std):
+            
         mean_pos = lat_long
         mean_vel = np.zeros_like(mean_pos)
         mean = np.r_[mean_pos, mean_vel]
 
-        scale = np.mean(lat_long)  # rough proxy for noise scaling
-        std = [
-            self._std_weight_position * scale for _ in range(self.dim)
-        ] + [
-            self._std_weight_velocity * scale for _ in range(self.dim)
-        ]
         covariance = np.diag(np.square(std))
         
         return mean, covariance
 
-    def predict(self, mean, covariance):
+    def predict(self, mean, covariance, std_pos, std_vel):
         
-        scale = mean[0]  # position proxy
-        std = [
-            self._std_weight_position * scale for _ in range(self.dim)
-        ] + [
-            self._std_weight_velocity * scale for _ in range(self.dim)
-        ]
-        motion_cov = np.diag(np.square(std))
-        mean = self._motion_mat @ mean
-        covariance = self._motion_mat @ covariance @ self._motion_mat.T + motion_cov
-        
+        motion_cov = np.diag(np.square(np.r_[std_pos, std_vel]))
+        mean = np.dot(mean, self._motion_mat.T)
+        covariance = (
+            np.linalg.multi_dot((self._motion_mat, covariance, self._motion_mat.T))
+            + motion_cov
+        )
+
         return mean, covariance
     
-    def update(self, mean, covariance, measurement):
+    def project(self, mean, covariance, std, confidence=0.0):
+        """
+        Project state distribution to measurement space.
         
-        projected_mean = self._update_mat @ mean
-        projected_cov = self._update_mat @ covariance @ self._update_mat.T
+        """
 
-        scale = mean[0]
-        std = [self._std_weight_position * scale for _ in range(self.dim)]
+        # NSA Kalman algorithm from GIAOTracker, which proposes a formula to
+        # adaptively calculate the noise covariance Rek:
+        # Rk = (1 − ck) Rk
+        # where Rk is the preset constant measurement noise covariance
+        # and ck is the detection confidence score at state k. Intuitively,
+        # the detection has a higher score ck when it has less noise,
+        # which results in a low Re.
+        std = [(1 - confidence) * x for x in std]
+
         innovation_cov = np.diag(np.square(std))
-        projected_cov += innovation_cov
 
-        chol, lower = scipy.linalg.cho_factor(projected_cov, lower=True)
+        mean = np.dot(self._update_mat, mean)
+        covariance = np.linalg.multi_dot(
+            (self._update_mat, covariance, self._update_mat.T)
+        )
+        return mean, covariance + innovation_cov
+    
+    def update(self, mean, covariance, measurement, std, confidence=0.0):
+        
+        projected_mean, projected_cov = self.project(mean, covariance, std, confidence)
+
+        chol, lower = scipy.linalg.cho_factor(projected_cov, lower=True, check_finite=False)
 
         kalman_gain = scipy.linalg.cho_solve(
-            (chol, lower), (covariance @ self._update_mat.T).T
+            (chol, lower), np.dot(covariance, self._update_mat.T).T, check_finite=False
         ).T
 
         innovation = measurement - projected_mean
-        new_mean = mean + kalman_gain @ innovation
-        new_cov = covariance - kalman_gain @ projected_cov @ kalman_gain.T
+        new_mean = mean + np.dot(innovation, kalman_gain.T)
+        new_covariance = covariance - np.linalg.multi_dot(
+            (kalman_gain, projected_cov, kalman_gain.T)
+        )
         
-        return new_mean, new_cov
+        return new_mean, new_covariance

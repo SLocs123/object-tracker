@@ -39,6 +39,8 @@ class Trajectory_Filter():
         self.simple_kf_xy.initiate(track)
         self.kf_box.initiate(track)
 
+        track.last_updated = 0
+
         track.mean = self.combine_mean(track.xymean, track.whmean)
         return track.mean, [track.xycov, track.whcov]
         
@@ -52,7 +54,7 @@ class Trajectory_Filter():
         """
         Run Kalman filter prediction step. look into handling multi----might just pass the track to handle below!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! -------------------------------- need to check if track is assigned, handle different domains
         """
-        
+
         if track.assigned:
             self.multi_kf_xy.predict(track)
         else:   
@@ -61,6 +63,8 @@ class Trajectory_Filter():
         self.kf_box.predict(track)
             
         track.mean = self.combine_mean(track.xymean, track.whmean)
+        track.last_updated+=1
+
         return track.mean, [track.xycov, track.whcov]
     
     # def multi_predict(self, tracks):
@@ -93,6 +97,7 @@ class Trajectory_Filter():
         """
         xy = xywh[:2]
         wh = xywh[2:4]
+        flag = "not assigned"
 
         if not track.assigned:
             track.assigned = is_within(xy, self.polygons)
@@ -104,16 +109,20 @@ class Trajectory_Filter():
                 track.maps = self.all_maps[track.assigned]
                 track.xywh = [*xy, *wh]
                 self.multi_kf_xy.initiate(track)
-
             else:
                 track.assigned = None  # Revert invalid assignment
 
         else:
             self.multi_kf_xy.update(track, xy)
             self.kf_box.update(track, wh)
+            flag = "assigned"
 
             
         track.mean = self.combine_mean(track.xymean, track.whmean) # this may not be necasasry if track.mean isn't being used perform next prediction step
+        track.last_updated = 0 
+
+        # print('Update: ', track.id, ', type: ', flag, '--------------------------------------------------------')
+        # print(f'Updated mean: {track.mean}')
         return track.mean, [track.xycov, track.whcov] # this might lead to duplicate code for some trackers, but should function normally
         
     

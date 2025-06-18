@@ -44,15 +44,11 @@ def main(video_path: str, dets_path: str, out_path: Path, predictions_path: Path
             break
         
         dets_array = load_detections(dets_path,frame_idx)
-        # frame_dets = dets[dets[:, 0] == frame_idx]
-        # if frame_dets.size:
-        #     det_input = frame_dets[:, 1:7]  # x1,y1,x2,y2,conf,cls
-        # else:
-        #     det_input = np.empty((0, 6))
 
 
         # tracks = tracker.update(dets_array, frame)
         tracks, preds = tracker.update(dets_array, frame)
+        
         for t in tracks:
             x1, y1, x2, y2, tid, conf, cls, _ = t
             results.append([frame_idx, int(tid), x1, y1, x2, y2, int(cls)])
@@ -62,19 +58,26 @@ def main(video_path: str, dets_path: str, out_path: Path, predictions_path: Path
             predictions.append([frame_idx, x, y, w, h])
  
         frame_idx += 1
- 
+        debug = False  # Set to True to enable debug mode
+        if debug:
+            user_input = input("Press [n] for next frame, [q] to quit: ").strip().lower()
+            if user_input == 'q':
+                return  # Exit the function
+        
     cap.release()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    np.savetxt(out_path, np.array(results), fmt="%d %d %.2f %.2f %.2f %.2f %d")
-    np.savetxt(predictions_path, np.array(predictions), fmt="%d %.2f %.2f %.2f %.2f")
+    # np.savetxt(out_path, np.array(results), fmt="%d %d %.2f %.2f %.2f %.2f %d")
+    # np.savetxt(predictions_path, np.array(predictions), fmt="%d %.2f %.2f %.2f %.2f")
+    
+
  
  
 if __name__ == "__main__":
     cam_name = '04'
     video_path = f'data/cam{cam_name}.mp4'
     dets_path = f'data/labels'
-    output_path = f'output/cam{cam_name}_sct_boxmot_results_predictions.txt'
-    pred_out = f'output/cam{cam_name}_sct_boxmot_results_predictions_pred.txt'
+    output_path = f'output/cam{cam_name}_boxmot_old.txt'
+    pred_out = f'output/cam{cam_name}_boxmot_old_preds.txt'
  
     main(video_path=video_path, dets_path=dets_path, out_path=Path(output_path), predictions_path=Path(pred_out), tracker_type="botsort")
  
