@@ -113,7 +113,7 @@ class Trajectory_Filter():
                 track.assigned = None  # Revert invalid assignment
 
         else:
-            self.multi_kf_xy.update(track, xy)
+            self.multi_kf_xy.update(track, xy, wh)
             self.kf_box.update(track, wh)
             flag = "assigned"
 

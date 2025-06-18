@@ -417,10 +417,16 @@ class BotSort(BaseTracker):
         predictions = []
         for track in self.active_tracks:
             prediction = track.mean[:4]
-            predictions.append(prediction)
+            flag = False
+            if track.assigned is not None:
+                flag = True
+            predictions.append(list(prediction) + [flag])
         for track in self.lost_stracks:
+            flag = False
+            if track.assigned is not None:
+                flag = True
             prediction = track.mean[:4]
-            predictions.append(prediction)
+            predictions.append(list(prediction) + [flag])
 
         outputs_arr = np.asarray(outputs) if outputs else np.empty((0, 7))
         predictions_arr = np.asarray(predictions) if predictions else np.empty((0, 4))

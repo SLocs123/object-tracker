@@ -55,7 +55,7 @@ class MultiKalman:
         
         if maps:
             for map in maps:
-                xy = track.xywh[:2] 
+                xy = track.[:2] 
 
                 track.long_lat = img_to_traj_domain(xy, map) 
                 mean, cov = self.kf.initiate(track.long_lat, std)  
@@ -81,7 +81,7 @@ class MultiKalman:
             The predicted trajectory state is then transformed to the image domain using the corresponding map.
         """
         
-        std_pos, std_vel = noise._get_process_noise_std(track.xywh[2:4])  # Extract width and height from xywh
+        std_pos, std_vel = noise._get_process_noise_std(track.mean[2:4])  # Extract width and height from xywh
         
         means = track.xymeans
         covariances = track.xycovs
@@ -130,7 +130,7 @@ class MultiKalman:
             # print(f"Predicting for track {track.id} with means: {means}")
 
 
-    def update(self, track, measurement):
+    def update(self, track, measurement, wh):
         """
         Updates the trajectory Kalman filters with new measurements.
         For each measurement in the input list, this method updates the corresponding
@@ -145,11 +145,10 @@ class MultiKalman:
         """
         
         confidence = getattr(track, "conf", getattr(track, "confidence", 0.0))
-        wh = np.array(track.xywh[2:4])  # Extract width and height from xywh
+        wh = np.array(wh)  # Extract width and height from xywh
         std = noise._get_measurement_noise_std(wh)
         
-        
-        
+    
         updated_means = []
         updated_covariances = []
 

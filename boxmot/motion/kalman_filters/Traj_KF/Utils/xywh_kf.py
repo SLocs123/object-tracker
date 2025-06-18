@@ -13,7 +13,7 @@ class noise_from_wh():
 
     def __init__(self):
         self._std_weight_position = 1. / 20  # Standard deviation weight for position noise
-        self._std_weight_velocity = 1. / 160  # Standard deviation weight for velocity noise
+        self._std_weight_velocity = 1. / 80  # Standard deviation weight for velocity noise
 
 
     def _get_initial_covariance_std(self, wh: np.ndarray) -> np.ndarray:

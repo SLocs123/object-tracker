@@ -1,5 +1,7 @@
 import cv2
 from collections import defaultdict
+import ast
+import numpy as np
 
 def draw_boxes(frame, boxes, color=(0, 255, 0), thickness=2):
     for box in boxes:
@@ -105,9 +107,11 @@ def load_all_preds(pred_dir):
     with open(pred_dir, 'r') as f:
         for line in f:
             parts = line.strip().split()
-            frame, x, y, w, h = map(float, parts)
+            frame, x, y, w, h, assigned = parts
+            frame = int(frame)
+            x, y, w, h = map(float, [x, y, w, h])
             x1,y1,x2,y2 = xywh_to_xyxy([x, y, w, h])
-            frame_preds[int(frame)].append([x1, y1, x2, y2])
+            frame_preds[int(frame)].append([x1, y1, x2, y2, assigned])
     return frame_preds
 
 def draw_preds(frame, preds):
@@ -122,8 +126,9 @@ def draw_preds(frame, preds):
         np.ndarray: The frame with prediction boxes drawn.
     """
     for pred in preds:
-        x1,y1,x2,y2 = map(int, pred)
+        x1, y1, x2, y2, assigned = pred
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+        cv2.putText(frame, f'name: {assigned}', (int((x1+x2)/2), int((y1+y2)/2)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
     return frame
 
@@ -145,13 +150,13 @@ codec = cv2.VideoWriter_fourcc(*'mp4v') # type: ignore
 cap = cv2.VideoCapture('data/cam04.mp4')
 width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-outputvid = cv2.VideoWriter('all_34_points.mp4', codec, 15, (width, height))
+outputvid = cv2.VideoWriter('34_with assigned.mp4', codec, 15, (width, height))
 polys = read_traj('data/trajectories/cam04_traj_redo.json').pop('polygons')
 predictions = True
-pred_dir = 'output/cam04_sct_boxmot_results_predictions_pred.txt'
+pred_dir = 'output/extended_preds_predictions.txt'
 
 frame_num = 0
-all_boxes = load_all_boxes('output/cam04_sct_boxmot_results_predictions.txt')
+all_boxes = load_all_boxes('output/extended_preds_main.txt')
 preds = load_all_preds(pred_dir) 
 fps = 0
 
@@ -176,14 +181,30 @@ while True:
     if predictions: # if predictions are enabled, draw them
         frame_preds = preds.get(frame_num, [])
         draw_preds(frame, frame_preds)
+    draw_boxes(frame, boxes) # draw boxes onto the frame
+
 
     if debugpoints:
         with open(debug_txt, 'r') as f:
             for line in f.readlines():
                 point = line.strip().split(', ')
+                # Draw debug points from debug_points.txt in yellow
                 cv2.circle(frame, (int(float(point[0])), int(float(point[1]))), 5, (0, 255, 255), -1)
 
-    draw_boxes(frame, boxes) # draw boxes onto the frame
+        # Read the file
+        with open('34_maps.txt', 'r') as file:
+            data = file.read()
+        # Safely evaluate the list structure
+        parsed = ast.literal_eval(data)
+        # Convert to a list of NumPy arrays with dtype=object to preserve the tuple structure
+        maps = []
+        for segment in parsed:
+            segment_array = np.array([[x, y] for ((x, y), v) in segment])
+            maps.append(segment_array)
+        # Draw map points from 34_maps.txt in cyan
+        for m in maps:
+            for point in m:
+                cv2.circle(frame, (int(point[0]), int(point[1])), 5, (255, 255, 0), -1)
 
     outputvid.write(frame)
 
