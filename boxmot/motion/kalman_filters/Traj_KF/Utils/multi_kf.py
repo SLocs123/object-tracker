@@ -55,7 +55,7 @@ class MultiKalman:
         
         if maps:
             for map in maps:
-                xy = track.[:2] 
+                xy = track.xywh[:2] 
 
                 track.long_lat = img_to_traj_domain(xy, map) 
                 mean, cov = self.kf.initiate(track.long_lat, std)  
