@@ -99,7 +99,7 @@ class MultiKalman:
         # Sort xymeans and xycovs by mean[1] in xymeans, maintaining their correspondence, and get the index
         sorted_index, sorted_pair = min(
             enumerate(zip(track.xymeans, track.xycovs)),
-            key=lambda pair: pair[1][0][1]
+            key=lambda pair: abs(pair[1][0][1])
         )
 
         xymean, xycov = sorted_pair
