@@ -108,7 +108,7 @@ class MultiKalman:
         vxvy = xymean[2:4].copy()
         track.xymean = [point[0], point[1], vxvy[0], vxvy[1]]  # Update the mean with the predicted position in image domain
         
-        debug = True
+        debug = False
         if debug:
             if track.id==34:
                 print('pos id //////////////////////////////////////////////////////////////////////////////////////')
