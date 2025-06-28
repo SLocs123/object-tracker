@@ -410,15 +410,16 @@ class BotSort(BaseTracker):
 
         
         # Prepare predictions (predicted boxes)
-        predictions = []
-        for track in self.active_tracks:
-            prediction = track.mean[:4]
-            predictions.append(prediction)
-        for track in self.lost_stracks:
-            prediction = track.mean[:4]
-            predictions.append(prediction)
+        # predictions = []
+        # for track in self.active_tracks:
+        #     prediction = track.mean[:4]
+        #     predictions.append(prediction)
+        # for track in self.lost_stracks:
+        #     prediction = track.mean[:4]
+        #     predictions.append(prediction)
 
         outputs_arr = np.asarray(outputs) if outputs else np.empty((0, 7))
-        predictions_arr = np.asarray(predictions) if predictions else np.empty((0, 4))
+        # predictions_arr = np.asarray(predictions) if predictions else np.empty((0, 4))
 
-        return outputs_arr, predictions_arr
+        # return outputs_arr, predictions_arr
+        return outputs_arr

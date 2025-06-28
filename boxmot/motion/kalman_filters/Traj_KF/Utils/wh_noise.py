@@ -28,6 +28,8 @@ class noise_from_wh():
     def _get_process_noise_std(self, wh: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         # wh: [w, h]
         std_pos = [
+
+        
             self._std_weight_position * wh[0],
             self._std_weight_position * wh[1],
         ]

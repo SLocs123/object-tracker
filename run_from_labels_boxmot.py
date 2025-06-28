@@ -76,8 +76,8 @@ if __name__ == "__main__":
     cam_name = '04'
     video_path = f'data/cam{cam_name}.mp4'
     dets_path = f'data/labels'
-    output_path = f'output/extended_preds_main.txt'
-    pred_out = f'output/extended_preds_predictions.txt'
+    output_path = f'output/botsort_new_test.txt'
+    pred_out = f'output/botsort_new_test_preds.txt'
  
     main(video_path=video_path, dets_path=dets_path, out_path=Path(output_path), predictions_path=Path(pred_out), tracker_type="botsort")
  

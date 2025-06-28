@@ -81,15 +81,13 @@ class MultiKalman:
             The predicted trajectory state is then transformed to the image domain using the corresponding map.
         """
         
-          # Extract width and height from xywh
+        std_pos, std_vel = noise._get_process_noise_std(track.mean[2:4])  # Extract width and height from xywh
         
         means = track.xymeans
         covariances = track.xycovs
-        time = track.last_updated  # Time since last update, used for process noise calculation
 
         for i, mean in enumerate(means):
             cov = covariances[i]
-            std_pos, std_vel = noise.get_process_noise_from_cov_and_time(cov, time)
             mean, cov = self.kf.predict(mean, cov, std_pos, std_vel)
 
             track.xymeans[i] = mean.copy()  # Ensure we copy the mean to avoid reference issues
