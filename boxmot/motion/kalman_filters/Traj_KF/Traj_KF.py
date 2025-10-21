@@ -2,7 +2,11 @@ from boxmot.motion.kalman_filters.Traj_KF.Utils.simple_kf import SimpleKalmanFil
 from boxmot.motion.kalman_filters.Traj_KF.Utils.multi_kf import MultiKalman
 from boxmot.motion.kalman_filters.Traj_KF.Utils.transformations import create_traj_map
 from boxmot.motion.kalman_filters.Traj_KF.Utils.utils import read_traj, is_within
+from boxmot.motion.kalman_filters.Traj_KF.Utils.Occlusion_detect import OcclusionDetect
 import numpy as np
+
+
+from boxmot.motion.kalman_filters.Traj_KF.Utils.metabus import bus
 
 class Trajectory_Filter():
     def __init__(self, traj_dir):
@@ -28,6 +32,7 @@ class Trajectory_Filter():
         self.simple_kf_xy = SimpleKalmanFilterXY()
         self.multi_kf_xy = MultiKalman()
         self.kf_box = SimpleKalmanFilterWH()
+        self.occldet = OcclusionDetect()
 
         self.define_traj_sr_maps()
         
@@ -40,7 +45,8 @@ class Trajectory_Filter():
         self.kf_box.initiate(track)
 
         track.last_updated = 0
-
+        
+        track.history = []
         track.mean = self.combine_mean(track.xymean, track.whmean)
         return track.mean, [track.xycov, track.whcov]
         
@@ -68,6 +74,19 @@ class Trajectory_Filter():
         """
         xy = xywh[:2]
         wh = xywh[2:4]
+        
+        
+        occlusion, history, info = self.occldet.step(track.mean[:4], track.history, xywh)
+        track.history = history
+        
+        if occlusion:
+            """update assuming constant motion model, need to implement a new motion model for occlusion"""
+            bus.put_track(track.id, "occluded", True)
+            bus.put_track(track.id, "info", info)
+        else:
+            bus.put_track(track.id, "occluded", False)
+            bus.put_track(track.id, "info", info)
+
 
         if not track.assigned:
             track.assigned = is_within(xy, self.polygons)

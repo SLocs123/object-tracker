@@ -5,6 +5,11 @@ import cv2
 from pathlib import Path
  
 from boxmot import create_tracker, get_tracker_config
+
+from boxmot.motion.kalman_filters.Traj_KF.Utils.metabus import bus
+from boxmot.motion.kalman_filters.Traj_KF.Utils.metabus_record import MetaBusRecorder
+rec = MetaBusRecorder(keep_in_memory=True, jsonl_path=None)  
+
  
  
 def load_detections(path: str,frame_idx:int) -> np.ndarray:
@@ -43,6 +48,7 @@ def main(video_path: str, dets_path: str, out_path: Path, predictions_path: Path
         if not ret:
             break
         
+        bus.begin(frame_idx)
         dets_array = load_detections(dets_path,frame_idx)
 
 
@@ -56,8 +62,10 @@ def main(video_path: str, dets_path: str, out_path: Path, predictions_path: Path
         for pred in preds:
             x, y, w, h, assigned = pred
             predictions.append([frame_idx, x, y, w, h, assigned])
- 
+
+        rec.commit(bus)
         frame_idx += 1
+        
         debug = False  # Set to True to enable debug mode
         if debug:
             user_input = input("Press [n] for next frame, [q] to quit: ").strip().lower()
@@ -68,6 +76,7 @@ def main(video_path: str, dets_path: str, out_path: Path, predictions_path: Path
     out_path.parent.mkdir(parents=True, exist_ok=True)
     np.savetxt(out_path, np.array(results), fmt="%d %d %.2f %.2f %.2f %.2f %d")
     np.savetxt(predictions_path, np.array(predictions), fmt="%d %.2f %.2f %.2f %.2f %s")
+    rec.save_json("output/meta/run.json", pretty=True)
     
 
  

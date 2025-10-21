@@ -2,12 +2,70 @@ import cv2
 from collections import defaultdict
 import ast
 import numpy as np
+import os
+import json
 
-def draw_boxes(frame, boxes, color=(0, 255, 0), thickness=2):
+def is_track_occluded(track_meta: dict) -> bool:
+    """
+    Decide occlusion truthiness from per-track metadata.
+    Consider common keys; fall back to score threshold if present.
+    """
+    truthy_keys = ["occluded", "partial", "occl", "occl_flag", "is_occluded", "occlusion"]
+    if any(bool(track_meta.get(k, False)) for k in truthy_keys):
+        return True
+    # Optional: score-based fallback
+    score = track_meta.get("occl_score", None)
+    if isinstance(score, (int, float)) and score >= 0.5:
+        return True
+    return False
+
+def load_meta_occlusions(path: str):
+    """
+    Load your recorder output and build:
+      meta_by_frame: {frame_idx: {track_id(str)}}
+    Returns empty dict if file missing or unreadable.
+    """
+    if not os.path.exists(path):
+        print(f"[meta] file not found: {path} (proceeding without occlusion colouring)")
+        return {}
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)  # expected: list of frames with {"iteration", "tracks": {...}}
+    except Exception as e:
+        print(f"[meta] failed to read {path}: {e} (proceeding without occlusion colouring)")
+        return {}
+
+    meta_by_frame = {}
+    # Handle either a list of frames or a dict with "frames"
+    frames_iter = data if isinstance(data, list) else data.get("frames", [])
+    for fr in frames_iter:
+        fid = int(fr.get("frame", fr.get("iteration", -1)))
+        tracks = fr.get("tracks", {}) or {}
+        occ_ids = set()
+        for tid, tmeta in tracks.items():
+            if isinstance(tmeta, dict) and is_track_occluded(tmeta):
+                occ_ids.add(str(tid))
+        if fid >= 0 and occ_ids:
+            meta_by_frame[fid] = occ_ids
+    return meta_by_frame
+
+def draw_boxes(frame, boxes, color=(0, 255, 0), thickness=2, occluded_ids=None):
+    """
+    boxes: list of [id, x1, y1, x2, y2]
+    occluded_ids: optional set of track id strings that are occluded for THIS frame
+    """
+    occ_col = (0, 255, 255)  # yellow
     for box in boxes:
         id, x1, y1, x2, y2 = map(int, box)
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
-        cv2.putText(frame, f'ID: {id}', (x1, y1 - 10), cv2.FONT_HERSHEY_PLAIN, 4, color, thickness)
+        is_occ = (occluded_ids is not None) and (str(int(id)) in occluded_ids)
+        col = occ_col if is_occ else color
+        thick = thickness + 2 if is_occ else thickness  # thicker for visibility
+
+        cv2.rectangle(frame, (x1, y1), (x2, y2), col, thick)
+        tag = " (OCC)" if is_occ else ""
+        cv2.putText(frame, f'ID: {id}{tag}', (x1, max(0, y1 - 10)),
+                    cv2.FONT_HERSHEY_PLAIN, 4, col, thick)
     return frame
 
 def load_all_boxes(path):
@@ -146,6 +204,45 @@ def xywh_to_xyxy(box):
     return [x-w//2, y-h//2, x+w//2, y+h//2]
 
 
+def load_detections(path: str,frame_idx:int) -> np.ndarray:
+    
+    det_path = os.path.join(path, f"img{frame_idx:06d}.txt")
+    with open(det_path, 'r') as f:
+        lines = f.readlines()
+    det_array = np.zeros((len(lines), 6))
+    for idx,line in enumerate(lines):
+        parts = line.strip().split()
+        if len(parts) < 6:#
+            print(f"Skipping line in {det_path}: {line.strip()}")
+            continue
+        cls, x1, y1, x2, y2, conf = map(float, parts[0:6])
+        det_array[idx, 0] = x1
+        det_array[idx, 1] = y1
+        det_array[idx, 2] = x2
+        det_array[idx, 3] = y2
+        det_array[idx, 4] = conf
+        det_array[idx, 5] = cls
+    
+    return det_array
+
+def draw_dets(frame, dets, color=(0, 0, 255), thickness=1):
+    """
+    Draws detection boxes on the given frame.
+    
+    Args:
+        frame (np.ndarray): The image frame on which to draw.
+        dets (np.ndarray): Array of detections, each row is [x1, y1, x2, y2, conf, cls].
+    
+    Returns:
+        np.ndarray: The frame with detection boxes drawn.
+    """
+    for det in dets:
+        x1, y1, x2, y2 = map(int, det[:4])
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
+    return frame
+ 
+
+
 codec = cv2.VideoWriter_fourcc(*'mp4v') # type: ignore
 cap = cv2.VideoCapture('data/cam04.mp4')
 width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -154,6 +251,10 @@ outputvid = cv2.VideoWriter('botsort_test.mp4', codec, 15, (width, height))
 polys = read_traj('data/trajectories/cam04_traj_redo.json').pop('polygons')
 predictions = True
 pred_dir = 'output/botsort_new_test_preds.txt'
+meta_path = 'output/meta/run.json'
+meta_occ_by_frame = load_meta_occlusions(meta_path)
+dets_dir = 'data/labels'   # your detection labels folder
+
 
 frame_num = 0
 all_boxes = load_all_boxes('output/botsort_new_test.txt')
@@ -173,15 +274,45 @@ while True:
     if polys is not None:
         draw_polygons(frame, polys)
 
-    boxes = all_boxes.get(frame_num, []) # get boxes for the current frame
-    if not boxes: # skipo any empty frames
+    boxes = all_boxes.get(frame_num, [])  # get boxes for the current frame
+    if not boxes:
         frame_num += 1
         outputvid.write(frame)
         continue
-    if predictions: # if predictions are enabled, draw them
+
+    # Get occluded IDs (if any) for this frame
+    occluded_ids = meta_occ_by_frame.get(frame_num, set())
+
+    if predictions:
         frame_preds = preds.get(frame_num, [])
         draw_preds(frame, frame_preds)
-    draw_boxes(frame, boxes) # draw boxes onto the frame
+
+    # Pass occluded_ids into draw_boxes
+    draw_boxes(frame, boxes, occluded_ids=occluded_ids)
+    
+    dets = load_detections(dets_dir, frame_num)
+    draw_dets(frame, dets, color=(0, 0, 255), thickness=1)  # draw detections in blue
+    
+    
+    # draw current frame number in top-right corner
+    text = f"Frame: {frame_num}"
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    scale = 1
+    thickness = 2
+    (text_w, text_h), baseline = cv2.getTextSize(text, font, scale, thickness)
+    x = width - text_w - 10
+    y = 10 + text_h
+
+    # background rectangle for readability
+    pad = 6
+    rect_tl = (x - pad // 2, y - text_h - pad // 2)
+    rect_br = (x + text_w + pad // 2, y + baseline + pad // 2)
+    cv2.rectangle(frame, rect_tl, rect_br, (0, 0, 0), -1)
+
+    # white text with a thin black outline for extra contrast
+    cv2.putText(frame, text, (x, y), font, scale, (50, 50, 50), thickness + 2, cv2.LINE_AA)
+    cv2.putText(frame, text, (x, y), font, scale, (255, 255, 255), thickness, cv2.LINE_AA)
+
 
 
     if debugpoints:

@@ -70,3 +70,24 @@ def is_within(xy, polygons):
         if polygon.contains(point):
             return polygon
     return None
+
+def _median(xs):
+    xs = sorted(xs)
+    n = len(xs)
+    if n == 0:
+        return 0.0
+    m = n // 2
+    if n % 2:
+        return xs[m]
+    return 0.5 * (xs[m-1] + xs[m])
+
+def _mad(xs, eps=1e-9):
+    # Median Absolute Deviation (robust scale). No Gaussian factor — we just need a stable scale.
+    if not xs:
+        return 1.0
+    med = _median(xs)
+    return max(_median([abs(x - med) for x in xs]), eps)
+
+
+def _recent(items, k):
+    return items[-k:] if len(items) > k else items
