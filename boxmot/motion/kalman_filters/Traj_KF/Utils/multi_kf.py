@@ -55,6 +55,18 @@ class MultiKalman:
             mean, cov = self.kf.predict(mean, cov, std_pos, std_vel)
             track.xymeans[i] = mean.copy()
             track.xycovs[i] = cov.copy()
+        
+        # Sort xymeans and xycovs by mean[1] in xymeans, maintaining their correspondence, and get the index
+        sorted_index, sorted_pair = min(
+            enumerate(zip(track.xymeans, track.xycovs)),
+            key=lambda pair: abs(pair[1][0][1])
+        )
+
+        xymean, xycov = sorted_pair
+        point = traj_to_img_domain(xymean[:2], track.maps[sorted_index])
+
+        vxvy = xymean[2:4].copy()
+        track.xymean = [point[0], point[1], vxvy[0], vxvy[1]]  # Update the mean with the predicted position in image domain
 
         self._update_active_hypothesis(track)
 
