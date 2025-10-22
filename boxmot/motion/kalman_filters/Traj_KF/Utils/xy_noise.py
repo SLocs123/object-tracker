@@ -95,16 +95,16 @@ class Kf_noise():
     #     ]
     #     return std_noise
 
-    def _get_multi_process_noise_std(self, wh: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        # wh: shape (N, 2), columns are [w, h]
-        std_pos = [
-            self._std_weight_position * wh[:, 0],
-            self._std_weight_position * wh[:, 1],
-        ]
+    # def _get_multi_process_noise_std(self, wh: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    #     # wh: shape (N, 2), columns are [w, h]
+    #     std_pos = [
+    #         self._std_weight_position * wh[:, 0],
+    #         self._std_weight_position * wh[:, 1],
+    #     ]
         
-        std_vel = [
-            self._std_weight_velocity * wh[:, 0],
-            self._std_weight_velocity * wh[:, 1],
-        ]
+    #     std_vel = [
+    #         self._std_weight_velocity * wh[:, 0],
+    #         self._std_weight_velocity * wh[:, 1],
+    #     ]
         
-        return np.array(std_pos), np.array(std_vel)
+    #     return np.array(std_pos), np.array(std_vel)

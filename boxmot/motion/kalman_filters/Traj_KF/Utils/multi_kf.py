@@ -106,23 +106,6 @@ class MultiKalman:
 
         vxvy = xymean[2:4].copy()
         track.xymean = [point[0], point[1], vxvy[0], vxvy[1]]  # Update the mean with the predicted position in image domain
-        
-        debug = False
-        if debug:
-            if track.id==34:
-                print('pos id //////////////////////////////////////////////////////////////////////////////////////')
-                if not os.path.exists('34_maps.txt'):
-                    with open('34_maps.txt', 'w') as f:
-                        f.write(str(track.maps))
-                points = np.array([], dtype=np.float32)
-                for i in range(len(track.xymeans)):
-                    point = traj_to_img_domain(track.xymeans[i][:2], track.maps[i])
-                    points = np.append(points, point)
-                if points.size > 0:
-                    with open("debug_points.txt", "a") as f:
-                        for pt in points.reshape(-1, 2):
-                            f.write(f"{pt[0]}, {pt[1]}\n")
-
 
 
     def update(self, track, measurement, wh):
