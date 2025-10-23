@@ -1,183 +1,163 @@
-from typing import Optional, Tuple
-
 import numpy as np
 
-
 class Kf_noise:
-    """Noise helpers for the trajectory-aware Kalman filters."""
+    """Noise helpers for an XY-only constant-velocity Kalman filter.
+    State order assumed: [x, y, vx, vy].
+    Access to (w, h) is used purely for scale-normalised noise.
+    """
 
-    def __init__(self):
-        self._std_weight_position = 1.0 / 20
-        self._std_weight_velocity = 1.0 / 80
-        self._min_std = 1e-3
+    def __init__(
+        self,
+        image_height: float | None = None,
+        vanishing_point: float | None = None,
+        _std_weight_position = 1.0 / 10,
+        _std_weight_velocity = 1.0 / 40
+    ):
+        self._std_weight_position = _std_weight_position
+        self._std_weight_velocity = _std_weight_velocity
+        self.image_height = image_height
+        self.vanishing_point = vanishing_point
 
-    def _get_initial_covariance_std(self, wh: np.ndarray) -> np.ndarray:
+
+    # ---------- helpers ----------
+    def _get_box_size(self, wh: list[float]) -> float:
+        """Compute box size for noise scaling."""
+        area = wh[0] * wh[1]
+        averaged_side = np.sqrt(area)
+        return averaged_side
+  
+    def _depth_factor(
+        self,
+        y: float | None,
+        min_factor: float = 0.3,
+        max_factor: float = 1.0,
+        default: str = "min"
+    ) -> float:
+        """Compute depth factor based on y-coordinate and vanishing point."""
+        
+        defaults = {
+            "min": min_factor,
+            "max": max_factor,
+            "mid": (min_factor + max_factor) / 2,
+        }
+        if default not in defaults:
+            raise ValueError(f"Invalid default '{default}', must be one of {list(defaults)}")
+
+        # Fallback value if computation can't be done
+        fallback = defaults[default]
+
+        if self.vanishing_point is None or self.image_height is None or y is None:
+            return round(fallback, 2)
+
+        # Simple linear interpolation between min and max
+        depth_factor = np.clip(
+            (y - self.vanishing_point) / (self.image_height - self.vanishing_point),
+            min_factor,
+            max_factor,
+        )
+        return round(depth_factor, 2)
+
+    def _apply_depth_factor(
+        self,
+        noise: float,
+        depth_factor: float,
+        gamma: float = 1.0,
+        w_p: float = 0.5,
+        w_m: float = 1.0,
+        noise_type: str = "process"
+    ) -> float:
+        """Apply depth factor to noise scaling."""
+        S = (1.0 - depth_factor) ** gamma
+
+        if noise_type == "process":
+            return float(noise * (S**w_p))
+        elif noise_type == "measurement":
+            return float(noise * (S**w_m))
+        else:
+            raise ValueError(f"Invalid noise_type '{noise_type}', must be 'process' or 'measurement'")
+
+    # ---------- API expected by filter ----------
+
+    def _get_initial_covariance_std(self, wh: list[float], box_y: float | None = None) -> np.ndarray:
+        """Return initial covariance STDs for a new track in XY-only state."""
+        box_size = self._get_box_size(wh)
+        depth_factor = self._depth_factor(y=box_y,)
+        
+        scale = self._apply_depth_factor(
+            noise=box_size,
+            depth_factor=depth_factor,
+            noise_type="measurement"
+            )
+            
         return np.array([
-            2 * self._std_weight_position * wh[0],
-            2 * self._std_weight_position * wh[1],
-            10 * self._std_weight_velocity * wh[0],
-            10 * self._std_weight_velocity * wh[1],
+            self._std_weight_position * scale,
+            self._std_weight_position * scale,
+            self._std_weight_velocity * scale,
+            self._std_weight_velocity * scale,
         ])
 
-    def _get_process_noise_std(self, wh: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        std_pos = [
-            self._std_weight_position * wh[0],
-            self._std_weight_position * wh[1],
-        ]
-
-        std_vel = [
-            self._std_weight_velocity * wh[0],
-            self._std_weight_velocity * wh[1],
-        ]
-
-        return np.array(std_pos), np.array(std_vel)
-
-    def get_process_noise_from_cov_and_time(
-        self,
-        cov: np.ndarray,
-        time_since_update: int,
-        base_measurement_std: Optional[np.ndarray] = None,
-        min_std: float = 1e-2,
-        process_base: float = 1.8,
-        process_growth: float = 0.45,
-        velocity_base: float = 1.2,
-        velocity_growth: float = 0.3,
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        diag = np.diag(cov)
-        pos_std_from_cov = np.sqrt(np.maximum(diag[:2], min_std))
-        vel_std_from_cov = np.sqrt(np.maximum(diag[2:4], min_std))
-
-        steps = max(1, int(time_since_update) + 1)
-
-        if base_measurement_std is None:
-            base_measurement_std = pos_std_from_cov
-        else:
-            base_measurement_std = np.asarray(base_measurement_std, dtype=float)
-
-        base_measurement_std = np.maximum(base_measurement_std, self._min_std)
-
-        process_ratio = process_base + process_growth * (steps - 1)
-        std_pos = np.maximum(
-            process_ratio * base_measurement_std,
-            pos_std_from_cov,
-        )
-
-        velocity_ratio = velocity_base + velocity_growth * (steps - 1)
-        std_vel = np.maximum(
-            velocity_ratio * base_measurement_std,
-            vel_std_from_cov,
-        )
-
-        return std_pos, std_vel
-
-    def _get_measurement_noise_std(self, wh: np.ndarray) -> np.ndarray:
-        area = max(wh[0] * wh[1], 1e-2)
-        inv_area = 1.0 / area
-        scale = np.sqrt(inv_area)
-        std_noise = [
+    def _get_process_noise_std(self, wh: list[float], box_y: float) -> tuple[np.ndarray, np.ndarray]:\
+        
+        box_size = self._get_box_size(wh)
+        depth_factor = self._depth_factor(y=box_y,)
+        
+        scale = self._apply_depth_factor(
+            noise=box_size,
+            depth_factor=depth_factor,
+            noise_type="process"
+            )
+        
+        return np.array([ # does this need to be reduced?????????????????? test
             self._std_weight_position * scale,
             self._std_weight_position * scale,
-        ]
+        ]), np.array([
+            self._std_weight_velocity * scale,
+            self._std_weight_velocity * scale,
+        ])
 
-        return np.array(std_noise)
 
-    def adaptive_measurement_std(
-        self,
-        base_std: np.ndarray,
-        innovation: np.ndarray,
-        velocity: np.ndarray,
-        projected_cov: np.ndarray,
-        steps_since_update: int,
-        base_gain: float = 0.65,
-        far_gain: float = 0.4,
-        max_gain: float = 0.95,
-        missed_for_max_gain: int = 10,
-        innovation_threshold: float = 1.0,
-        innovation_max: float = 3.0,
-    ) -> np.ndarray:
-        """Compute an adaptive measurement standard deviation.
+    def _get_measurement_noise_std(self, wh: list[float], box_y: float) -> np.ndarray:
+        """Return measurement STDs for z = [x, y] (length-2)."""
+        box_size = self._get_box_size(wh)
+        depth_factor = self._depth_factor(y=box_y,)
+        
+        scale = self._apply_depth_factor(
+            noise=box_size,
+            depth_factor=depth_factor,
+            noise_type="measurement"
+            )
+        
+        return np.array([
+            self._std_weight_position * scale,
+            self._std_weight_position * scale,
+        ])
 
-        The innovation term fed to this function is the raw positional residual in the
-        trajectory coordinate frame.  Internally we compare its magnitude against an
-        "innovation reference" defined as ``base_std + max(|velocity|, base_std)``.
-        With the default ``innovation_threshold`` of 1.0, residuals at roughly that
-        scale are treated as routine noise and keep the update close to ``base_gain``
-        (≈65% measurement influence).  Larger residuals are considered increasingly
-        surprising: once the innovation is about three times the reference magnitude
-        (``innovation_max`` of 3.0) the ratio saturates and the effective gain falls
-        toward ``far_gain`` (≈40% influence at nominal recency, rising toward 90–95%
-        as the track ages).  For example, if ``base_std`` is 0.2 in the trajectory
-        units and the current velocity is 0.5, the reference magnitude becomes 0.7;
-        a residual of ~0.7 keeps the default weighting, while ~2.1 or greater is
-        flagged as highly surprising and down-weights the measurement accordingly.
-        """
-        # Ensure all inputs are numpy arrays and clamp the base standard deviation to
-        # a small floor so downstream ratios remain numerically stable.
-        base_std = np.maximum(np.asarray(base_std, dtype=float), self._min_std)
-        innovation = np.asarray(innovation, dtype=float)
-        velocity = np.asarray(velocity, dtype=float)
-        projected_cov = np.asarray(projected_cov, dtype=float)
+# def _get_process_noise_std(self, mean: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+#     """Return (std_pos, std_vel) for XY-only state. Each is length-2: [σx, σy] and [σvx, σvy].
+#     Caller typically builds Q via diag( [std_pos, std_vel]^2 ) in [x,y,vx,vy] order.
+#     """
+#     # mean is expected to contain at least [x, y, w, h, ...]
+#     w = float(mean[2])
+#     h = float(mean[3])
+#     sx, sy = self._eff_sizes(w, h)
 
-        # Convert the integer "steps since update" into a [0, 1] factor that rises as
-        # detections are missed, enabling us to lean more on measurements over time.
-        steps = max(1, int(steps_since_update))
-        time_alpha = np.clip(
-            (steps - 1) / max(1, missed_for_max_gain),
-            0.0,
-            1.0,
-        )
+#     std_pos = np.array([self.k_p * sx, self.k_p * sy], dtype=float)
+#     std_vel = np.array([self.k_v * sx, self.k_v * sy], dtype=float)
+#     return std_pos, std_vel
 
-        # Blend between the nominal and maximum Kalman gains, giving older tracks a
-        # higher measurement influence and pulling distant hypotheses slightly closer.
-        time_gain = base_gain + (max_gain - base_gain) * time_alpha
-        far_gain_at_time = far_gain + (0.9 - far_gain) * time_alpha
+# def _get_measurement_noise_std(self, wh: np.ndarray) -> np.ndarray:
+#     """Return measurement STDs for z = [x, y] (length-2)."""
+#     w = float(wh[0])
+#     h = float(wh[1])
+#     sx, sy = self._eff_sizes(w, h)
 
-        # Derive an expected innovation magnitude using the object's size and
-        # velocity, so we only inflate measurement noise when the residual grows.
-        innovation_reference = np.maximum(
-            base_std,
-            np.maximum(np.abs(velocity), self._min_std),
-        ) + base_std
-        innovation_ratio = np.abs(innovation) / np.maximum(innovation_reference, self._min_std)
+#     base = np.array([self.k_p * sx, self.k_p * sy], dtype=float)  # process-pos std per axis
+#     std = self.m * base * self._conf_scale(confidence)            # 2–4× (or more if low conf)
+#     return std
 
-        # Map the innovation ratio into [0, 1] to describe how surprising the
-        # measurement is; larger surprises trigger more conservative updates.
-        innovation_alpha = np.clip(
-            (innovation_ratio - innovation_threshold)
-            / max(1e-6, innovation_max - innovation_threshold),
-            0.0,
-            1.0,
-        )
-
-        # Reduce the target gain when the innovation is large so the filter trusts
-        # the measurement less, while respecting the time-based lower bound.
-        desired_gain = time_gain - (time_gain - far_gain_at_time) * innovation_alpha
-        desired_gain = np.clip(desired_gain, far_gain_at_time, max_gain)
-
-        # Translate the desired Kalman gain into measurement variance, ensuring it
-        # never drops below the projected uncertainty so updates stay consistent.
-        projected_var = np.maximum(np.diag(projected_cov), self._min_std ** 2)
-        measurement_var = projected_var * (1.0 - desired_gain) / np.maximum(desired_gain, 1e-3)
-
-        # Enforce a noise floor tied to the base standard deviation to prevent the
-        # gain from exceeding our intended limits when the prediction is overconfident.
-        base_var = np.square(base_std)
-        measurement_var = np.maximum(measurement_var, base_var)
-
-        # Return the adaptive measurement standard deviation, which the caller can
-        # use to modulate the update step toward the desired weighting.
-        return np.sqrt(measurement_var)
-
-    def _get_multi_process_noise_std(self, wh: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        std_pos = [
-            self._std_weight_position * wh[:, 0],
-            self._std_weight_position * wh[:, 1],
-        ]
-
-        std_vel = [
-            self._std_weight_velocity * wh[:, 0],
-            self._std_weight_velocity * wh[:, 1],
-        ]
-
-        return np.array(std_pos), np.array(std_vel)
-
+# def _conf_scale(self, confidence: float | None) -> float:
+# """Scale factor ≥ 1.0; low confidence → larger measurement noise."""
+# if confidence is None:
+#     return 1.0
+# c = float(np.clip(confidence, 0.0, 1.0))
+# return 1.0 + self.beta * (1.0 - c)

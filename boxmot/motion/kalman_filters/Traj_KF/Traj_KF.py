@@ -1,12 +1,12 @@
-from boxmot.motion.kalman_filters.Traj_KF.Utils.simple_kf import SimpleKalmanFilterXY, SimpleKalmanFilterWH
-from boxmot.motion.kalman_filters.Traj_KF.Utils.multi_kf import MultiKalman
-from boxmot.motion.kalman_filters.Traj_KF.Utils.transformations import create_traj_map
-from boxmot.motion.kalman_filters.Traj_KF.Utils.utils import read_traj, is_within
-from boxmot.motion.kalman_filters.Traj_KF.Utils.Occlusion_detect import OcclusionDetect
+from .Utils.simple_kf import SimpleKalmanFilterXY, SimpleKalmanFilterWH
+from .Utils.multi_kf import MultiKalman
+from .Utils.transformations import create_traj_map
+from .Utils.utils import read_traj, is_within
+from .Utils.Occlusion_detect import OcclusionDetect
 import numpy as np
 
 
-from boxmot.motion.kalman_filters.Traj_KF.Utils.metabus import bus
+from .Utils.metabus import bus
 
 class Trajectory_Filter():
     def __init__(self, traj_dir):
@@ -28,9 +28,12 @@ class Trajectory_Filter():
 
         self.polygon_set = read_traj(traj_dir)
         self.polygons = self.polygon_set.pop('polygons')
+        # self.image_meta = self.polygon_set.pop('image_meta') !!!!-------------------- need to implement into setup
+        self.image_meta = {'width':3840, 'height':2160, 'vanishing_point_y':344}  # temporary fix
+        
 
         self.simple_kf_xy = SimpleKalmanFilterXY()
-        self.multi_kf_xy = MultiKalman()
+        self.multi_kf_xy = MultiKalman(vanishing_point_y=self.image_meta['vanishing_point_y'], image_height=self.image_meta['height'])
         self.kf_box = SimpleKalmanFilterWH()
         self.occldet = OcclusionDetect()
 
@@ -97,7 +100,7 @@ class Trajectory_Filter():
             if track.assigned and track.assigned in self.all_maps:
                 track.maps = self.all_maps[track.assigned]
                 track.xywh = [*xy, *wh]
-                self.multi_kf_xy.initiate(track)
+                self.multi_kf_xy.initiate(track,)
             else:
                 track.assigned = None  # Revert invalid assignment
 
