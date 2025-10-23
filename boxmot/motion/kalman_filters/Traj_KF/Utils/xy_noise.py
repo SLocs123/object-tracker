@@ -22,9 +22,10 @@ class Kf_noise:
     # ---------- helpers ----------
     def _get_box_size(self, wh: list[float]) -> float:
         """Compute box size for noise scaling."""
-        area = wh[0] * wh[1]
-        averaged_side = np.sqrt(area)
-        return averaged_side
+        # area = wh[0] * wh[1]
+        # averaged_side = np.sqrt(area)
+        # return averaged_side
+        return (wh[0] + wh[1]) / 2.0
   
     def _depth_factor(
         self,
