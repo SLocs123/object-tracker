@@ -116,12 +116,13 @@ class SimpleKalmanFilterWH:
 
     def initiate(self, track):
         wh = track.xywh[2:4]
+        y = track.xywh[1]+ wh[1]/2 # use bottom of box for depth
         mean_pos = wh
         mean_vel = np.zeros_like(mean_pos)
         mean = np.r_[mean_pos, mean_vel]
 
 
-        std = self.noise_model._get_initial_covariance_std(wh)
+        std = self.noise_model._get_initial_covariance_std(wh, box_y=y)
         covariance = np.diag(np.square(std))
 
 

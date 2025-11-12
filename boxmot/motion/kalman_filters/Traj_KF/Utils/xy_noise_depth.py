@@ -31,10 +31,10 @@ class Kf_noise:
         self,
         y: float | None,
         min_factor: float = 0.3,
-        max_factor: float = 9.0,
+        max_factor: float = 0.9,
         default: str = "min"
     ) -> float:
-        """Compute depth factor based on y-coordinate and vanishing point."""
+        """Compute quasi depth factor based on y-coordinate and vanishing point."""
         
         defaults = {
             "min": min_factor,
@@ -50,7 +50,7 @@ class Kf_noise:
         if self.vanishing_point is None or self.image_height is None or y is None:
             return round(fallback, 2)
 
-        # Simple linear interpolation between min and max
+        # Simple linear interpolation between min and max 
         depth_factor = np.clip(
             (y - self.vanishing_point) / (self.image_height - self.vanishing_point),
             min_factor,

@@ -5,8 +5,8 @@ from .transformations import (
     img_to_traj_domain,
     traj_to_img_domain,
 )
-from .xy_noise_basic import Kf_noise
-# from .xy_noise_depth import Kf_noise
+# from .xy_noise_basic import Kf_noise
+from .xy_noise_depth import Kf_noise
 # from.xy_noise_half import Kf_noise
 
 
@@ -29,7 +29,7 @@ class MultiKalman:
         maps = track.maps
         
         wh = track.xywh[2:4]
-        y = track.xywh[1]+ wh[1] # use bottom of box for depth
+        y = track.xywh[1]+ wh[1]/2 # use bottom of box for depth
         std = self.noise._get_initial_covariance_std(wh, box_y=y)
 
         if maps:
@@ -45,7 +45,7 @@ class MultiKalman:
     def predict(self, track):
         """Predict the next state for each trajectory hypothesis."""
         wh = track.mean[2:4]
-        y = track.mean[1] + wh[1]  # use bottom of box for depth
+        y = track.mean[1] + wh[1]/2  # use bottom of box for depth
         means = track.xymeans
         covariances = track.xycovs
 
@@ -71,7 +71,7 @@ class MultiKalman:
     def update(self, track, measurement, wh):
         """Update every hypothesis with the incoming measurement."""
         measurement = np.asarray(measurement, dtype=float)
-        y = measurement[1] + wh[1]  # use bottom of box for depth
+        y = measurement[1] + wh[1]/2  # use bottom of box for depth
         wh = list(wh)
 
         updated_means = []
