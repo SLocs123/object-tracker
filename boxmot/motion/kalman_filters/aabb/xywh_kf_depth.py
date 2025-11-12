@@ -27,7 +27,7 @@ class KalmanFilterXYWH(BaseKalmanFilter):
         self,
         y: float | None,
         min_factor: float = 0.3,
-        max_factor: float = 1.0,
+        max_factor: float = 0.9,
         default: str = "min"
     ) -> float:
         """Compute depth factor based on y-coordinate and vanishing point."""
