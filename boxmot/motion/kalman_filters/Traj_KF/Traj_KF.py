@@ -34,7 +34,7 @@ class Trajectory_Filter():
 
         self.simple_kf_xy = SimpleKalmanFilterXY()
         self.multi_kf_xy = MultiKalman(vanishing_point_y=self.image_meta['vanishing_point_y'], image_height=self.image_meta['height'])
-        self.kf_box = SimpleKalmanFilterWH()
+        self.kf_box = SimpleKalmanFilterWH(vanishing_point_y=self.image_meta['vanishing_point_y'], image_height=self.image_meta['height'])
         self.occldet = OcclusionDetect()
 
         self.define_traj_sr_maps()
@@ -95,7 +95,7 @@ class Trajectory_Filter():
             track.assigned = is_within(xy, self.polygons)
 
             self.simple_kf_xy.update(track, xy)
-            self.kf_box.update(track, wh)
+            self.kf_box.update(track, wh, xy)
 
             if track.assigned and track.assigned in self.all_maps:
                 track.maps = self.all_maps[track.assigned]
@@ -106,7 +106,7 @@ class Trajectory_Filter():
 
         else:
             self.multi_kf_xy.update(track, xy, wh)
-            self.kf_box.update(track, wh)
+            self.kf_box.update(track, wh, xy)
             flag = "assigned"
 
             

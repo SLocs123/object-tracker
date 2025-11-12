@@ -1,0 +1,22 @@
+new_depth
+              IDF1   IDP   IDR  Rcll  Prcn  GT  MT PT ML    FP   FN IDs   FM  MOTA  MOTP IDt IDa IDm
+SingleCamera 70.8% 63.4% 80.2% 91.6% 72.4% 291 235 28 28 19824 4769  85  358 56.5% 0.169  11  79   5
+
+new_half
+              IDF1   IDP   IDR  Rcll  Prcn  GT  MT PT ML    FP   FN IDs   FM  MOTA  MOTP IDt IDa IDm
+SingleCamera 69.3% 62.1% 78.5% 91.0% 72.0% 291 232 31 28 20048 5108  92  352 55.5% 0.173  11  86   5
+
+new_basic
+              IDF1   IDP   IDR  Rcll  Prcn  GT  MT PT ML    FP   FN IDs   FM  MOTA  MOTP IDt IDa IDm
+SingleCamera 69.1% 61.9% 78.1% 90.7% 71.9% 291 232 31 28 20124 5257  94  368 55.1% 0.173  11  88   5
+
+
+It measures how many real objects the tracker successfully followed with consistent IDs.
+
+
+old_depth
+error
+
+old_half
+              IDF1   IDP   IDR  Rcll  Prcn  GT  MT PT ML    FP   FN IDs   FM  MOTA  MOTP IDt IDa IDm
+SingleCamera 73.6% 65.4% 84.1% 92.5% 71.9% 291 236 28 27 20476 4274  68  287 56.2% 0.172  12  61   5

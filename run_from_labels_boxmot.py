@@ -51,7 +51,6 @@ def main(video_path: str, dets_path: str, out_path: Path, predictions_path: Path
         bus.begin(frame_idx)
         dets_array = load_detections(dets_path,frame_idx)
 
-
         # tracks = tracker.update(dets_array, frame)
         tracks, preds = tracker.update(dets_array, frame)
         
@@ -59,9 +58,9 @@ def main(video_path: str, dets_path: str, out_path: Path, predictions_path: Path
             x1, y1, x2, y2, tid, conf, cls, _ = t
             results.append([frame_idx, int(tid), x1, y1, x2, y2, int(cls)])
         
-        for pred in preds:
-            x, y, w, h, assigned = pred
-            predictions.append([frame_idx, x, y, w, h, assigned])
+        # for pred in preds:
+        #     x, y, w, h, assigned = pred
+        #     predictions.append([frame_idx, x, y, w, h, assigned])
 
         rec.commit(bus)
         frame_idx += 1
@@ -75,7 +74,7 @@ def main(video_path: str, dets_path: str, out_path: Path, predictions_path: Path
     cap.release()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     np.savetxt(out_path, np.array(results), fmt="%d %d %.2f %.2f %.2f %.2f %d")
-    np.savetxt(predictions_path, np.array(predictions), fmt="%d %.2f %.2f %.2f %.2f %s")
+    # np.savetxt(predictions_path, np.array(predictions), fmt="%d %.2f %.2f %.2f %.2f %s")
     rec.save_json("output/meta/run.json", pretty=True)
     
 
@@ -85,7 +84,7 @@ if __name__ == "__main__":
     cam_name = '04'
     video_path = f'data/cam{cam_name}.mp4'
     dets_path = f'data/labels'
-    output_path = f'output/botsort_new_test.txt'
+    output_path = f'output/botsort_new_depth_noise_test_boxupdate.txt'
     pred_out = f'output/botsort_new_test_preds.txt'
  
     main(video_path=video_path, dets_path=dets_path, out_path=Path(output_path), predictions_path=Path(pred_out), tracker_type="botsort")

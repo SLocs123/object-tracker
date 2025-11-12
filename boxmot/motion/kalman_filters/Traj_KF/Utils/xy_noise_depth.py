@@ -31,7 +31,7 @@ class Kf_noise:
         self,
         y: float | None,
         min_factor: float = 0.3,
-        max_factor: float = 1.0,
+        max_factor: float = 9.0,
         default: str = "min"
     ) -> float:
         """Compute depth factor based on y-coordinate and vanishing point."""
@@ -68,7 +68,7 @@ class Kf_noise:
         noise_type: str = "process"
     ) -> float:
         """Apply depth factor to noise scaling."""
-        S = (1.0 - depth_factor) ** gamma
+        S = max((1.0 - depth_factor) ** gamma, 1e-3)
 
         if noise_type == "process":
             return float(noise * (S**w_p))
@@ -117,7 +117,7 @@ class Kf_noise:
         ])
 
 
-    def _get_measurement_noise_std(self, wh: list[float], box_y: float) -> np.ndarray:
+    def _get_measurement_noise_std(self, wh: list[float], box_y: float, debug=False) -> np.ndarray:
         """Return measurement STDs for z = [x, y] (length-2)."""
         box_size = self._get_box_size(wh)
         depth_factor = self._depth_factor(y=box_y,)
@@ -127,6 +127,12 @@ class Kf_noise:
             depth_factor=depth_factor,
             noise_type="measurement"
             )
+        
+        
+        if debug:
+            print("Box size:", box_size)
+            print("Depth factor:", depth_factor)
+            print("Scale:", scale)
         
         return np.array([
             self._std_weight_position * scale,

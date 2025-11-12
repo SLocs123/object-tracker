@@ -66,6 +66,8 @@ def draw_boxes(frame, boxes, color=(0, 255, 0), thickness=2, occluded_ids=None):
         tag = " (OCC)" if is_occ else ""
         cv2.putText(frame, f'ID: {id}{tag}', (x1, max(0, y1 - 10)),
                     cv2.FONT_HERSHEY_PLAIN, 4, col, thick)
+        centre = ( (x1 + x2)//2, (y1 + y2)//2 )
+        cv2.circle(frame, centre, 5, col, -1)
     return frame
 
 def load_all_boxes(path):
@@ -225,7 +227,7 @@ def load_detections(path: str,frame_idx:int) -> np.ndarray:
     
     return det_array
 
-def draw_dets(frame, dets, color=(0, 0, 255), thickness=1):
+def draw_dets(frame, dets, color=(255, 0, 0), thickness=1):
     """
     Draws detection boxes on the given frame.
     
@@ -239,6 +241,8 @@ def draw_dets(frame, dets, color=(0, 0, 255), thickness=1):
     for det in dets:
         x1, y1, x2, y2 = map(int, det[:4])
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
+        centre = ( (x1 + x2)//2, (y1 + y2)//2 )
+        cv2.circle(frame, centre, 3, (255, 0, 0), -1)
     return frame
  
 
@@ -247,9 +251,9 @@ codec = cv2.VideoWriter_fourcc(*'mp4v') # type: ignore
 cap = cv2.VideoCapture('data/cam04.mp4')
 width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-outputvid = cv2.VideoWriter('botsort_test.mp4', codec, 15, (width, height))
+outputvid = cv2.VideoWriter('botsort_test_old.mp4', codec, 15, (width, height))
 polys = read_traj('data/trajectories/cam04_traj_redo.json').pop('polygons')
-predictions = True
+predictions = False
 pred_dir = 'output/botsort_new_test_preds.txt'
 meta_path = 'output/meta/run.json'
 meta_occ_by_frame = load_meta_occlusions(meta_path)
@@ -257,11 +261,11 @@ dets_dir = 'data/labels'   # your detection labels folder
 
 
 frame_num = 0
-all_boxes = load_all_boxes('output/botsort_new_test.txt')
+all_boxes = load_all_boxes('output/botsort_old_test.txt')
 preds = load_all_preds(pred_dir) 
 fps = 0
 
-debugpoints = True
+debugpoints = False
 debug_txt = 'debug_points.txt'
 
 while True:

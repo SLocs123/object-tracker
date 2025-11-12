@@ -28,10 +28,10 @@ class KalmanFilterXYWH(BaseKalmanFilter):
 
     def _get_process_noise_std(self, mean: np.ndarray) -> Tuple[list, list]:
         std_pos = [
-            0.1*self._std_weight_position * mean[2],
-            0.1*self._std_weight_position * mean[3],
-            0.1*self._std_weight_position * mean[2],
-            0.1*self._std_weight_position * mean[3],
+            0.5*self._std_weight_position * mean[2],
+            0.5*self._std_weight_position * mean[3],
+            0.5*self._std_weight_position * mean[2],
+            0.5*self._std_weight_position * mean[3],
         ]
         std_vel = [
             self._std_weight_velocity * mean[2],
