@@ -5,7 +5,6 @@ from collections import deque
 import numpy as np
 
 from boxmot.motion.kalman_filters.aabb.xyah_kf import KalmanFilterXYAH
-from boxmot.motion.kalman_filters.Traj_KF.Traj_KF import Trajectory_Filter
 from boxmot.trackers.basetracker import BaseTracker
 from boxmot.trackers.bytetrack.basetrack import BaseTrack, TrackState
 from boxmot.utils.matching import fuse_score, iou_distance, linear_assignment
@@ -13,6 +12,8 @@ from boxmot.utils.ops import tlwh2xyah, xywh2tlwh, xywh2xyxy, xyxy2xywh
 
 
 class STrack(BaseTrack):
+    shared_kalman = KalmanFilterXYAH()
+
     def __init__(self, det, max_obs):
         # wait activate
         self.xywh = xyxy2xywh(det[0:4])  # (x1, y1, x2, y2) --> (xc, yc, w, h)
@@ -27,34 +28,35 @@ class STrack(BaseTrack):
         self.is_activated = False
         self.tracklet_len = 0
         self.history_observations = deque([], maxlen=self.max_obs)
-        self.assigned = False
-        
+
     def predict(self):
         mean_state = self.mean.copy()
         if self.state != TrackState.Tracked:
             mean_state[7] = 0
-        self.mean, self.covariance = self.kalman_filter.predict(self)
+        self.mean, self.covariance = self.kalman_filter.predict(
+            mean_state, self.covariance
+        )
 
-    # @staticmethod
-    # def multi_predict(stracks):
-    #     if len(stracks) > 0:
-    #         multi_mean = np.asarray([st.mean.copy() for st in stracks])
-    #         multi_covariance = np.asarray([st.covariance for st in stracks])
-    #         for i, st in enumerate(stracks):
-    #             if st.state != TrackState.Tracked:
-    #                 multi_mean[i][7] = 0
-    #         multi_mean, multi_covariance = STrack.shared_kalman.multi_predict(
-    #             multi_mean, multi_covariance
-    #         )
-    #         for i, (mean, cov) in enumerate(zip(multi_mean, multi_covariance)):
-    #             stracks[i].mean = mean
-    #             stracks[i].covariance = cov
+    @staticmethod
+    def multi_predict(stracks):
+        if len(stracks) > 0:
+            multi_mean = np.asarray([st.mean.copy() for st in stracks])
+            multi_covariance = np.asarray([st.covariance for st in stracks])
+            for i, st in enumerate(stracks):
+                if st.state != TrackState.Tracked:
+                    multi_mean[i][7] = 0
+            multi_mean, multi_covariance = STrack.shared_kalman.multi_predict(
+                multi_mean, multi_covariance
+            )
+            for i, (mean, cov) in enumerate(zip(multi_mean, multi_covariance)):
+                stracks[i].mean = mean
+                stracks[i].covariance = cov
 
     def activate(self, kalman_filter, frame_id):
         """Start a new tracklet"""
         self.kalman_filter = kalman_filter
         self.id = self.next_id()
-        self.mean, self.covariance = self.kalman_filter.initiate(self)
+        self.mean, self.covariance = self.kalman_filter.initiate(self.xyah)
 
         self.tracklet_len = 0
         self.state = TrackState.Tracked
@@ -66,7 +68,7 @@ class STrack(BaseTrack):
 
     def re_activate(self, new_track, frame_id, new_id=False):
         self.mean, self.covariance = self.kalman_filter.update(
-            self, new_track.xywh
+            self.mean, self.covariance, new_track.xyah
         )
         self.tracklet_len = 0
         self.state = TrackState.Tracked
@@ -91,7 +93,7 @@ class STrack(BaseTrack):
         self.history_observations.append(self.xyxy)
 
         self.mean, self.covariance = self.kalman_filter.update(
-            self, new_track.xywh
+            self.mean, self.covariance, new_track.xyah
         )
         self.state = TrackState.Tracked
         self.is_activated = True
@@ -108,9 +110,11 @@ class STrack(BaseTrack):
         if self.mean is None:
             ret = self.xywh.copy()  # (xc, yc, w, h)
         else:
-            ret = self.mean[:4].copy()  # kf (xc, yc, w, h)
+            ret = self.mean[:4].copy()  # kf (xc, yc, a, h)
+            ret[2] *= ret[3]  # (xc, yc, a, h)  -->  (xc, yc, w, h)
         ret = xywh2xyxy(ret)
         return ret
+
 
 class ByteTrack(BaseTracker):
     """
@@ -149,9 +153,7 @@ class ByteTrack(BaseTracker):
         self.det_thresh = track_thresh
         self.buffer_size = int(frame_rate / 30.0 * track_buffer)
         self.max_time_lost = self.buffer_size
-        # self.kalman_filter = KalmanFilterXYAH()
-        traj_dir = 'data/trajectories/cam04_traj_redo.json'
-        self.kalman_filter = Trajectory_Filter(traj_dir)
+        self.kalman_filter = KalmanFilterXYAH()
 
     @BaseTracker.setup_decorator
     @BaseTracker.per_class_decorator
@@ -184,7 +186,7 @@ class ByteTrack(BaseTracker):
         else:
             detections = []
 
-        """ Add newly detected tracklets to tracked_stracks, pretty sure this is not true, or badly worded"""
+        """ Add newly detected tracklets to tracked_stracks"""
         unconfirmed = []
         tracked_stracks = []  # type: list[STrack]
         for track in self.active_tracks:
@@ -196,10 +198,7 @@ class ByteTrack(BaseTracker):
         """ Step 2: First association, with high conf detection boxes"""
         strack_pool = joint_stracks(tracked_stracks, self.lost_stracks)
         # Predict the current location with KF
-        # STrack.multi_predict(strack_pool)
-        for track in strack_pool:
-            track.predict()
-            
+        STrack.multi_predict(strack_pool)
         dists = iou_distance(strack_pool, detections)
         # if not self.args.mot20:
         dists = fuse_score(dists, detections)

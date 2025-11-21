@@ -128,6 +128,18 @@ def iou_distance(atracks, btracks):
 
     :rtype cost_matrix np.ndarray
     """
+    # for track in atracks:
+    #     print("atrack xyxy:", track.xyxy)
+    #     print("atrack mean:", track.mean)
+    #     print("atrack xywh:", track.xywh)
+        
+    # if len(atracks) == 0 or len(btracks) == 0:
+    #     print("No tracks to compare")
+    # else:
+    #     import time
+    #     time.sleep(500000)
+
+    
 
     if (len(atracks) > 0 and isinstance(atracks[0], np.ndarray)) or (
         len(btracks) > 0 and isinstance(btracks[0], np.ndarray)
@@ -137,6 +149,7 @@ def iou_distance(atracks, btracks):
     else:
         atlbrs = [track.xyxy for track in atracks]
         btlbrs = [track.xyxy for track in btracks]
+
 
     ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float32)
     if ious.size == 0:

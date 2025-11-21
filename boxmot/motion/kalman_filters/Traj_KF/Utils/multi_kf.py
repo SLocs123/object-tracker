@@ -6,9 +6,9 @@ from .transformations import (
     traj_to_img_domain,
 )
 # from .xy_noise_basic import Kf_noise
-from .xy_noise_depth import Kf_noise
+# from .xy_noise_depth import Kf_noise
 # from.xy_noise_half import Kf_noise
-
+from .xy_noise_basic_small_process import Kf_noise
 
 
 

@@ -51,8 +51,8 @@ def main(video_path: str, dets_path: str, out_path: Path, predictions_path: Path
         bus.begin(frame_idx)
         dets_array = load_detections(dets_path,frame_idx)
 
-        # tracks = tracker.update(dets_array, frame)
-        tracks, preds = tracker.update(dets_array, frame)
+        tracks = tracker.update(dets_array, frame)
+        # tracks, preds = tracker.update(dets_array, frame)
         
         for t in tracks:
             x1, y1, x2, y2, tid, conf, cls, _ = t
@@ -84,8 +84,8 @@ if __name__ == "__main__":
     cam_name = '04'
     video_path = f'data/cam{cam_name}.mp4'
     dets_path = f'data/labels'
-    output_path = f'output/botsort_new_depth_noise_test_boxupdate.txt'
-    pred_out = f'output/botsort_new_test_preds.txt'
+    output_path = f'output/bytetrack_test_new_80_100.txt'
+    pred_out = f'output/bytetrack_pred.txt'
  
-    main(video_path=video_path, dets_path=dets_path, out_path=Path(output_path), predictions_path=Path(pred_out), tracker_type="botsort")
+    main(video_path=video_path, dets_path=dets_path, out_path=Path(output_path), predictions_path=Path(pred_out), tracker_type="bytetrack")
  

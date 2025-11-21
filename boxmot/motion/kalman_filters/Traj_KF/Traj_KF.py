@@ -2,7 +2,8 @@ from .Utils.simple_kf import SimpleKalmanFilterXY, SimpleKalmanFilterWH
 from .Utils.multi_kf import MultiKalman
 from .Utils.transformations import create_traj_map
 from .Utils.utils import read_traj, is_within
-from .Utils.Occlusion_detect import OcclusionDetect
+# from .Utils.Occlusion_detect import OcclusionDetect
+from .Utils.Occlusion_detect_static import OcclusionDetect
 import numpy as np
 
 
@@ -44,6 +45,7 @@ class Trajectory_Filter():
         """
         Always starts in image domain.
         """
+        # print("running")
         self.simple_kf_xy.initiate(track)
         self.kf_box.initiate(track)
 
@@ -82,13 +84,14 @@ class Trajectory_Filter():
         occlusion, history, info = self.occldet.step(track.mean[:4], track.history, xywh)
         track.history = history
         
-        if occlusion:
-            """update assuming constant motion model, need to implement a new motion model for occlusion"""
-            bus.put_track(track.id, "occluded", True)
-            bus.put_track(track.id, "info", info)
-        else:
-            bus.put_track(track.id, "occluded", False)
-            bus.put_track(track.id, "info", info)
+        if track.id == 13:
+            if occlusion:
+                """update assuming constant motion model, need to implement a new motion model for occlusion"""
+                bus.put_track(track.id, "occluded", True)
+                bus.put_track(track.id, "info", info)
+            else:
+                bus.put_track(track.id, "occluded", False)
+                bus.put_track(track.id, "info", info)
 
 
         if not track.assigned:

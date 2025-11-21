@@ -252,7 +252,7 @@ codec = cv2.VideoWriter_fourcc(*'mp4v') # type: ignore
 cap = cv2.VideoCapture('data/cam04.mp4')
 width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-outputvid = cv2.VideoWriter('botsort_test_depth_all.mp4', codec, 15, (width, height))
+outputvid = cv2.VideoWriter('bad_occlusion.mp4', codec, 15, (width, height))
 polys = read_traj('data/trajectories/cam04_traj_redo.json').pop('polygons')
 predictions = False
 pred_dir = 'output/botsort_normal_preds.txt'
@@ -262,7 +262,7 @@ dets_dir = 'data/labels'   # your detection labels folder
 
 
 frame_num = 0
-all_boxes = load_all_boxes('output/botsort_new_depth_noise_test_boxupdate.txt')
+all_boxes = load_all_boxes('output/bytetrack_test_new_80_100.txt')
 preds = load_all_preds(pred_dir) 
 fps = 0
 

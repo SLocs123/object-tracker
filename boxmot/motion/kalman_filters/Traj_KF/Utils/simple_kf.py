@@ -1,8 +1,11 @@
 import numpy as np
 import scipy.linalg
-from .xy_noise_depth import Kf_noise
+
+
+# from .xy_noise_depth import Kf_noise
 # from .xy_noise_half import Kf_noise
 # from .xy_noise_basic import Kf_noise
+from .wh_noise_basic_small_process import Kf_noise
 
 class SimpleKalmanFilterXY:
     def __init__(self, dim=2, std_pos=1. / 20, std_vel=1. / 160):
@@ -92,7 +95,7 @@ class SimpleKalmanFilterXY:
 
 
 class SimpleKalmanFilterWH:
-    def __init__(self, dim=2, std_pos=1. / 20, std_vel=1. / 160, vanishing_point_y: float | None = None, image_height: float | None = None):
+    def __init__(self, dim=2, vanishing_point_y: float | None = None, image_height: float | None = None):
         """
         dim: Number of position dimensions (2 → x, y or a, h)
         std_pos: Standard deviation weight for position noise
@@ -106,8 +109,6 @@ class SimpleKalmanFilterWH:
             self._motion_mat[i, dim + i] = self.dt
 
         self._update_mat = np.eye(dim, 2 * dim)
-        self._std_weight_position = std_pos
-        self._std_weight_velocity = std_vel
         self._min_std = 1e-3
 
         self.noise_model = Kf_noise()
