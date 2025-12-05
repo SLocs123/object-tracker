@@ -87,7 +87,36 @@ class MultiKalman:
 
         track.xymeans = updated_means
         track.xycovs = updated_covariances
+    
+    def predict_occluded(self, track, avg_delta):
+        """Predict the next state for each trajectory hypothesis, under occluded conditions, assuming constant velocity."""   
+        wh = track.mean[2:4]
+        y = track.mean[1] + wh[1]/2  # use bottom of box for depth
+        means = track.xymeans
+        covariances = track.xycovs
 
+        for i, mean in enumerate(means):
+            cov = covariances[i]
+            std_pos, std_vel = self.noise._get_process_noise_std(wh, box_y=y)
+            mean, cov = self.kf.predict_occluded(mean, cov, std_pos, std_vel, avg_delta)
+            # print(f'prediction: {mean}')
+            track.xymeans[i] = mean.copy()
+            track.xycovs[i] = cov.copy()
+        
+        # Sort xymeans and xycovs by mean[1] in xymeans, maintaining their correspondence, and get the index
+        sorted_index, sorted_pair = min(
+            enumerate(zip(track.xymeans, track.xycovs)),
+            key=lambda pair: abs(pair[1][0][1])
+        )
+
+        # print(track.mean)
+        # print(avg_delta)
+        xymean, xycov = sorted_pair
+        point = traj_to_img_domain(xymean[:2], track.maps[sorted_index])
+
+        vxvy = xymean[2:4].copy()
+        track.xymean = [point[0], point[1], vxvy[0], vxvy[1]]  # Update the mean with the predicted position in image domain
+        
 
 
 class MultiKalmanFilterXY:
@@ -120,6 +149,18 @@ class MultiKalmanFilterXY:
         )
 
         return mean, covariance
+    
+    def predict_occluded(self, mean, covariance, std_pos, std_vel, avg_delta):
+        """Predict step under occlusion, assuming constant velocity (no process noise on velocity)."""
+        motion_cov = np.diag(np.square(np.r_[std_pos, std_vel]))
+        mean[0] += avg_delta
+        covariance = (
+            np.linalg.multi_dot((self._motion_mat, covariance, self._motion_mat.T))
+            + motion_cov
+        )
+        
+        return mean, covariance
+        
 
     def project(self, mean, covariance, std):
         """Project state distribution to measurement space."""

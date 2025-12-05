@@ -167,7 +167,7 @@ def load_all_preds(pred_dir):
     with open(pred_dir, 'r') as f:
         for line in f:
             parts = line.strip().split()
-            print(parts)
+            # print(parts)
             frame, x, y, w, h, assigned = parts
             frame = int(frame)
             x, y, w, h = map(float, [x, y, w, h])
@@ -252,17 +252,17 @@ codec = cv2.VideoWriter_fourcc(*'mp4v') # type: ignore
 cap = cv2.VideoCapture('data/cam04.mp4')
 width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-outputvid = cv2.VideoWriter('bad_occlusion.mp4', codec, 15, (width, height))
+outputvid = cv2.VideoWriter('occlusion_test.mp4', codec, 15, (width, height))
 polys = read_traj('data/trajectories/cam04_traj_redo.json').pop('polygons')
-predictions = False
-pred_dir = 'output/botsort_normal_preds.txt'
+predictions = True
+pred_dir = 'output/bytetrack_pred.txt'
 meta_path = 'output/meta/run.json'
 meta_occ_by_frame = load_meta_occlusions(meta_path)
 dets_dir = 'data/labels'   # your detection labels folder
 
 
 frame_num = 0
-all_boxes = load_all_boxes('output/bytetrack_test_new_80_100.txt')
+all_boxes = load_all_boxes('output/bytetrack_test_new_80_100_occluded_on.txt')
 preds = load_all_preds(pred_dir) 
 fps = 0
 

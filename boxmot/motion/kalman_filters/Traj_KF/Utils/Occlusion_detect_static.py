@@ -16,7 +16,7 @@ class OcclusionDetect:
         # history / hysteresis
         maxlen: int = 10,
         enter_needed: int = 2,
-        recover_needed: int = 2,
+        recover_needed: int = 4,
         # normalisation & gating
         min_norm_w: float = 30.0,
         min_norm_h: float = 30.0,
@@ -55,13 +55,13 @@ class OcclusionDetect:
     def step(
         self,
         pred_xywh: Tuple[float, float, float, float],
-        history: List[Dict[str, float]],
+        history: List[Dict[str, Any]],
         det_xywh: Tuple[float, float, float, float],
-    ) -> Tuple[bool, List[Dict[str, float]], Dict[str, Any]]:
+    ) -> Tuple[bool, List[Dict[str, Any]], Dict[str, Any]]:
         """
         Decide occlusion for this frame and update the provided history
         using fixed thresholds only (no adaptive / MAD-based scaling).
-
+    
         Returns:
             occ_flag (bool), updated_history (list), info (dict)
         """
@@ -216,12 +216,11 @@ class OcclusionDetect:
 
         # --- append compact record to history (used only for hysteresis) ---
         hist.append({
-            'rx': rx, 'ry': ry, 'rw': rw, 'rh': rh,
-            'eL': eL, 'eR': eR, 'eT': eT, 'eB': eB,
-            'aec': AEC, 'asym_ratio': asym_ratio,
             'occ': bool(occ),
             'enter_streak': int(enter_streak),
             'recover_streak': int(recover_streak),
+            'xywh': det_xywh,
+            'phase': phase,
         })
         if len(hist) > cfg["maxlen"]:
             hist = hist[-cfg["maxlen"]:]

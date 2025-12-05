@@ -52,6 +52,7 @@ class Trajectory_Filter():
         track.last_updated = 0
         
         track.history = []
+        track.occluded = False
         track.mean = self.combine_mean(track.xymean, track.whmean)
         return track.mean, [track.xycov, track.whcov]
         
@@ -59,9 +60,17 @@ class Trajectory_Filter():
         """
         Run Kalman filter prediction step. look into handling multi----might just pass the track to handle below!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! -------------------------------- need to check if track is assigned, handle different domains
         """
-
+        # occlusion, history, info = self.occldet.step(track.mean[:4], track.history, xywh)
+        # track.history = history
+        
         if track.assigned:
-            self.multi_kf_xy.predict(track)
+            if track.occluded:
+                avg_delta, last_wh = self.get_clean_delta(track.history)
+                # print(f'traj_kf, avg_delta: {avg_delta}, last_wh: {last_wh}')
+                self.multi_kf_xy.predict_occluded(track, avg_delta)
+                track.whmean[:2] = last_wh  # keep size from last clean detection
+            else:
+                self.multi_kf_xy.predict(track)
         else:   
             self.simple_kf_xy.predict(track)
         
@@ -83,17 +92,15 @@ class Trajectory_Filter():
         
         occlusion, history, info = self.occldet.step(track.mean[:4], track.history, xywh)
         track.history = history
+        track.occluded = occlusion
         
-        if track.id == 13:
-            if occlusion:
-                """update assuming constant motion model, need to implement a new motion model for occlusion"""
-                bus.put_track(track.id, "occluded", True)
-                bus.put_track(track.id, "info", info)
-            else:
-                bus.put_track(track.id, "occluded", False)
-                bus.put_track(track.id, "info", info)
-
-
+        if occlusion:
+            """update assuming constant motion model, need to implement a new motion model for occlusion"""
+            bus.put_track(track.id, "occluded", True)
+            bus.put_track(track.id, "info", info)
+        # else:
+            # bus.put_track(track.id, "occluded", False)
+            # bus.put_track(track.id, "info", info)
         if not track.assigned:
             track.assigned = is_within(xy, self.polygons)
 
@@ -110,7 +117,6 @@ class Trajectory_Filter():
         else:
             self.multi_kf_xy.update(track, xy, wh)
             self.kf_box.update(track, wh, xy)
-            flag = "assigned"
 
             
         track.mean = self.combine_mean(track.xymean, track.whmean)
@@ -118,12 +124,64 @@ class Trajectory_Filter():
 
         return track.mean, [track.xycov, track.whcov] # this might lead to duplicate code for some trackers, but should function normally
         
+    def get_clean_delta(self, history):
+        """
+        Get clean delta from the multi-kalman filter.
+        """
+                  
+        # Safely filter only entries whose phase equals the string 'clean'.
+        # Handle both Python str and numpy scalar string types.
+        def is_clean_phase(item):
+            phase = item.get('phase', None)
+            if isinstance(phase, str):
+                return phase == 'clean'
+            # numpy scalar string (e.g. np.array('clean') or np.str_) supports .item()
+            try:
+                return phase.item() == 'clean'
+            except Exception:
+                return False
+            
+            
+        last_clean = []
+        for h in history:
+            if is_clean_phase(h):
+                last_clean.append(np.asarray(h['xywh'], dtype=float))
+            else:
+                break
+        
+        try:
+            last_wh = np.asarray(last_clean[-1][2:4], dtype=float)
+        except IndexError:
+            last_wh = np.array([50,50]) # default to a square if no clean history
+                
+        delta = []
+        last_xy = None
+
+        for xywh in last_clean:
+            if last_xy is not None:
+                delta.append(xywh[:2] - last_xy)
+            last_xy = xywh[:2]
+            
+        if len(delta) == 0:
+            avg_delta = 0
+        else:
+            avg_axis = np.mean(np.asarray(delta), axis=0)
+            avg_delta = np.linalg.norm(avg_axis)
+            
+            
+        # print('---------------- GET CLEAN DELTA ----------------')
+        # print(f'Histroy: {history}')
+        # print(f'History length: {len(history)}')
+        # print(f'Last clean entries: {len(last_clean)}')
+        # print(f'Avg delta: {avg_delta}, Last wh: {last_wh}')
+        return avg_delta, last_wh
     
     def define_traj_sr_maps(self):
         self.all_maps = {}
         for ext_key, internal_dict in self.polygon_set.items():
             trajectories = []
-            for trajs in internal_dict.values():
+            for data_dict in internal_dict.values():
+                trajs = data_dict['trajectory']
                 trajectories.append(np.array(trajs[:, 0]))
             self.all_maps[ext_key] = create_traj_map(trajectories)
         

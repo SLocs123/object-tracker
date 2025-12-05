@@ -157,7 +157,7 @@ class ByteTrack(BaseTracker):
     @BaseTracker.per_class_decorator
     def update(
         self, dets: np.ndarray, img: np.ndarray = None, embs: np.ndarray = None
-    ) -> np.ndarray:
+    ):
 
         self.check_inputs(dets, img)
 
@@ -300,7 +300,19 @@ class ByteTrack(BaseTracker):
             output.append(t.det_ind)
             outputs.append(output)
         outputs = np.asarray(outputs)
-        return outputs
+        
+                # Prepare predictions (predicted boxes)
+        predictions = []
+        for track in strack_pool:
+            prediction = track.mean[:4]
+            flag = False
+            if track.assigned is not None:
+                flag = True
+            predictions.append(list(prediction) + [flag])
+
+        predictions_arr = np.asarray(predictions) if predictions else np.empty((0, 4))
+        
+        return outputs, predictions_arr
 
 
 # id, class_id, conf

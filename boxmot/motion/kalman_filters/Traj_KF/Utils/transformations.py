@@ -130,6 +130,7 @@ def traj_to_img_domain(position, map):
     Returns:
         np.ndarray: (x, y) position in image domain.
     """
+    # print(f'postion trans: {position}')
     traj_disp, lat_disp = position
 
     # Handle standard interpolation within the map
@@ -185,6 +186,8 @@ def traj_to_img_domain(position, map):
         perp_vec = np.array([-line_vec_normalized[1], line_vec_normalized[0]])
         return (base_point + lat_disp * perp_vec).tolist()
 
+    
+    # print(f'traj_disp: {traj_disp}, map bounds: {map[0][1]} to {map[-1][1]}')
     raise ValueError("The trajectory distance is outside the bounds of the translation map.")
 
 def create_traj_map(trajs):
