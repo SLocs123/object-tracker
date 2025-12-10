@@ -150,7 +150,8 @@ class ByteTrack(BaseTracker):
         self.buffer_size = int(frame_rate / 30.0 * track_buffer)
         self.max_time_lost = self.buffer_size
         # self.kalman_filter = KalmanFilterXYAH()
-        traj_dir = 'data/trajectories/cam04_traj_redo.json'
+        # traj_dir = 'data/trajectories/cam04_traj_redo.json'
+        traj_dir = 'data/trajectories/cam04_traj_seperated.json'
         self.kalman_filter = Trajectory_Filter(traj_dir)
 
     @BaseTracker.setup_decorator

@@ -4,6 +4,7 @@ import scipy.linalg
 from .transformations import (
     img_to_traj_domain,
     traj_to_img_domain,
+    
 )
 # from .xy_noise_basic import Kf_noise
 # from .xy_noise_depth import Kf_noise
@@ -22,12 +23,12 @@ class MultiKalman:
         self.image_height = image_height
         self.noise = Kf_noise(vanishing_point=vanishing_point_y, image_height=image_height)
 
-    def initiate(self, track, ):
+    def initiate(self, track):
         """Initialise a Kalman filter per candidate trajectory map."""
         track.xymeans = []
         track.xycovs = []
         maps = track.maps
-        
+                
         wh = track.xywh[2:4]
         y = track.xywh[1]+ wh[1]/2 # use bottom of box for depth
         std = self.noise._get_initial_covariance_std(wh, box_y=y)
@@ -89,7 +90,11 @@ class MultiKalman:
         track.xycovs = updated_covariances
     
     def predict_occluded(self, track, avg_delta):
-        """Predict the next state for each trajectory hypothesis, under occluded conditions, assuming constant velocity."""   
+        """Predict the next state for each trajectory hypothesis, under occluded conditions, assuming constant velocity."""  
+        
+        # to make this work, must assign current point to track everytime a translation is performed. This will allow me to get current meta data for location and occlusion.
+        #  either pass track into lower predict function, or add a get closest function to transformer. Get closer would be easiest but slightly repeating
+         
         wh = track.mean[2:4]
         y = track.mean[1] + wh[1]/2  # use bottom of box for depth
         means = track.xymeans

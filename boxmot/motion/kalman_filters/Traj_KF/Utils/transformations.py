@@ -1,6 +1,58 @@
 import numpy as np
 
-def img_to_traj_domain(position, map):
+def img_to_traj_domain(position, map_data):
+    """
+    Converts a position from image domain to trajectory domain using a given mapping.
+
+    Args:
+        position (np.ndarray): The position in image domain.
+        map (np.ndarray): The mapping from image domain to trajectory domain.
+
+    Returns:
+        np.ndarray: The position in trajectory domain.
+    """    
+    map = list(zip(map_data['trajectory'], map_data['traj_map']))
+    map_positions = np.array([p[0] for p in map])
+    distances = np.linalg.norm(map_positions - position, axis=1)
+    nearest_indices = np.argsort(distances).tolist()
+    best = nearest_indices[0]
+    next = best + 1
+    prev = best - 1
+
+    # Check bounds for next and prev
+    candidates = []
+    if 0 <= next < len(map):
+        candidates.append(next)
+    if 0 <= prev < len(map):
+        candidates.append(prev)
+
+    # Find which of next or prev is closer to the position
+    if len(candidates) == 2:
+        if distances[next] < distances[prev]:
+            second_index = next
+        else:
+            second_index = prev
+    elif len(candidates) == 1:
+        second_index = candidates[0]
+    else:
+        raise ValueError("No valid adjacent segment found.")
+
+    first_index, second_index = sorted([best, second_index])
+
+    # Get the cartesian points
+    first_point = map[first_index][0]
+    second_point = map[second_index][0]
+    
+    # Compute the perpendicular distance and the scalar projection (t)
+    lat_disp, long_disp = perpendicular_distance(position, first_point, second_point)
+    
+    # Compute the cumulative trajectory distance (this assumes you're working with a trajectory map)
+    traj_disp = map[first_index][1] + long_disp
+    
+    return traj_disp, lat_disp
+
+
+def img_to_traj_domain_old(position, map):
     """
     Converts a position from image domain to trajectory domain using a given mapping.
 
@@ -71,54 +123,8 @@ def img_to_traj_domain(position, map):
     
     return traj_disp, lat_disp
 
-# def traj_to_img_domain(position, map):
-#     """
-#     Converts a position from trajectory domain to image domain using a given mapping.
 
-#     Args:
-#         position (np.ndarray): The position in trajectory domain.
-#         map (np.ndarray): The mapping from trajectory domain to image domain.
-
-#     Returns:
-#         np.ndarray: The position in image domain.
-#     """
-#     lat_disp, traj_disp = position
-#     # Traverse through the map to find the two closest points based on trajectory distance
-#     for i in range(1, len(map)):
-#         first_point = map[i-1]
-#         second_point = map[i]
-        
-#         # Check if the trajectory distance falls between the two points
-#         if first_point[1] <= traj_disp <= second_point[1]:
-#             # Calculate the fraction of the distance within this segment
-#             frac = (traj_disp - first_point[1]) / (second_point[1] - first_point[1])
-            
-#             # Interpolate between the two points to get the base Cartesian coordinates
-#             x = first_point[0][0] + frac * (second_point[0][0] - first_point[0][0])
-#             y = first_point[0][1] + frac * (second_point[0][1] - first_point[0][1])
-
-#             # Now adjust for the lateral displacement (lat_disp)
-#             # Find the direction of the tangent (perpendicular) at the point on the trajectory
-#             line_vec = np.array(second_point[0]) - np.array(first_point[0])  # vector along the line
-#             line_length = np.linalg.norm(line_vec)
-#             if line_length == 0:
-#                 raise ValueError("The two trajectory points are the same, cannot compute direction.")
-
-#             # Normalize the vector to get the unit direction
-#             line_vec_normalized = line_vec / line_length
-
-#             # Find the unit perpendicular vector (rotating 90 degrees counterclockwise)
-#             perp_vec = np.array([-line_vec_normalized[1], line_vec_normalized[0]])
-
-#             # Adjust the point for lateral displacement
-#             x += lat_disp * perp_vec[0]
-#             y += lat_disp * perp_vec[1]
-            
-#             return x, y
-        
-#     raise ValueError("The trajectory distance is outside the bounds of the translation map.")
-
-def traj_to_img_domain(position, map):
+def traj_to_img_domain(position, data_map):
     """
     Converts a position from trajectory domain to image domain using a given mapping.
     Allows projection beyond the final segment of the trajectory.
@@ -130,9 +136,9 @@ def traj_to_img_domain(position, map):
     Returns:
         np.ndarray: (x, y) position in image domain.
     """
-    # print(f'postion trans: {position}')
     traj_disp, lat_disp = position
 
+    map = list(zip(data_map['trajectory'], data_map['traj_map'])) # added for new map data struture, if reverted to old remove this line
     # Handle standard interpolation within the map
     for i in range(1, len(map)):
         first_point = map[i - 1]
@@ -169,7 +175,7 @@ def traj_to_img_domain(position, map):
         perp_vec = np.array([-line_vec_normalized[1], line_vec_normalized[0]])
         return (base_point + lat_disp * perp_vec).tolist()
 
-    # (Optional) Handle extrapolation before start — not requested, but symmetric
+    # Handle extrapolation before start
     if traj_disp < map[0][1]:
         second_point = map[1]
         first_point = map[0]
@@ -190,7 +196,7 @@ def traj_to_img_domain(position, map):
     # print(f'traj_disp: {traj_disp}, map bounds: {map[0][1]} to {map[-1][1]}')
     raise ValueError("The trajectory distance is outside the bounds of the translation map.")
 
-def create_traj_map(trajs):
+def create_traj_map_old(trajs):
     """
     Creates a mapping from image domain to trajectory domain.
 
@@ -215,6 +221,33 @@ def create_traj_map(trajs):
             current_map.append((cartesian_point, centre_point))
         translation_map.append(current_map)
     return translation_map
+
+def create_traj_map(trajs):
+    """
+    Creates a mapping from image domain to trajectory domain.
+
+    Args:
+        traj_domain (np.ndarray): The trajectory domain.
+        img_domain (np.ndarray): The image domain.
+        trajs (list): The list of trajectories in previous fomrat.
+
+    Returns:
+        np.ndarray: The mapping from trajectory domain to image domain.
+    """
+    map_data = []
+    for traj in trajs:
+        traj_map = []
+        trajectory = traj['trajectory']
+        for i, point in enumerate(trajectory):
+            if i == 0:
+                centre_point = 0
+            else:
+                distance = np.linalg.norm(np.array(trajectory[i-1]) - np.array(trajectory[i]))
+                centre_point = traj_map[-1] + distance
+            traj_map.append(centre_point)
+        traj['traj_map'] = traj_map
+        map_data.append(traj)
+    return map_data
 
 def perpendicular_distance(point, line_start, line_end):
     """Calculate the perpendicular distance from a point to a line segment,

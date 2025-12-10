@@ -88,7 +88,7 @@ def read_json(filename):
     return restored
 
 
-def read_traj(traj_dir):
+def read_traj(traj_dir, old_format=False):
     """
     Read trajectory data from a file, which can be in either JSON or pickle format.
     pkl seems to show some compatibility issues with numpy and boxmot versions, use json when running old numpy. 
@@ -101,7 +101,10 @@ def read_traj(traj_dir):
         dict: The loaded trajectory data.
     """
     if traj_dir.endswith('.json'):
-        return read_json(traj_dir)
+        if old_format:
+            return read_json_old(traj_dir)
+        else:
+            return read_json(traj_dir)
     elif traj_dir.endswith('.pkl'):
         return read_pkl(traj_dir)
     else:

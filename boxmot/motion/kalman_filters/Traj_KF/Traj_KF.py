@@ -106,11 +106,11 @@ class Trajectory_Filter():
 
             self.simple_kf_xy.update(track, xy)
             self.kf_box.update(track, wh, xy)
-
+            
             if track.assigned and track.assigned in self.all_maps:
                 track.maps = self.all_maps[track.assigned]
                 track.xywh = [*xy, *wh]
-                self.multi_kf_xy.initiate(track,)
+                self.multi_kf_xy.initiate(track)
             else:
                 track.assigned = None  # Revert invalid assignment
 
@@ -179,11 +179,11 @@ class Trajectory_Filter():
     def define_traj_sr_maps(self):
         self.all_maps = {}
         for ext_key, internal_dict in self.polygon_set.items():
-            trajectories = []
+            data_set = []
             for data_dict in internal_dict.values():
-                trajs = data_dict['trajectory']
-                trajectories.append(np.array(trajs[:, 0]))
-            self.all_maps[ext_key] = create_traj_map(trajectories)
+                data = data_dict
+                data_set.append(data)
+            self.all_maps[ext_key] = create_traj_map(data_set)
         
     def split_mean(self, mean):
         """
